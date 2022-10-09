@@ -1,9 +1,29 @@
-# BeEM #
-Conversion of PDBx/mmCIF files to best effort/minimal PDB files
+# BeEM: Conversion of PDBx/mmCIF Files to Best Effort/Minimal Format PDB Files #
 
-## Introduction ##
+The current official format for the Protein Data Bank is [PDBx/mmCIF](https://mmcif.wwpdb.org/). However, there are many structural bioinformatics tools that accepts the legacy [PDB](http://www.wwpdb.org/documentation/file-format-content/format33/v3.3.html) format rather than PDBx/mmCIF format. SOme mmCIF structures cannot converted to PDB format, including:
+
+* Entries containing multiple character chain ids
+* Entries containing > 62 chains
+* Entries containing > 99999 ATOM coordinates
+* Entries that have complex beta sheet topology
+
+For these structures, the [Best Effort/Minimal](https://www.rcsb.org/docs/general-help/structures-without-legacy-pdb-format-files) PDB files are provided by the PDB database instead. Unfortunately, not all best effort/minimal files are generated correctly in the PDB database. Moreover, there is no publicly available tool for the generation of Best Effort/Minimal files. To address this issue, we develop BEst Effort/Minimal (BeEM), the first open source implementation for the generation of Best Effort/Minimal file.
+
+## Limitations ##
+Best effort/minimal PDB format files contain only authorship, citation details and coordinate data under HEADER, AUTHOR, JRNL, CRYST1, SCALEn, ATOM, HETATM records.
+
+The following PDB records are not included in the official implementation of best effort/minimal files: OBSLTE, TITLE, CAVEAT, COMPND, SOURCE, KEYWDS, EXPDTA, REVDAT, SPRSDE, REMARKS, DBREF, SEQADV, SEQRES, MODRES, HET, HETNAM, HETSYN, FORMUL, HELIX, SHEET, SSBOND, LINK, CISPEP, SITE, ORIGXn, MTRIXn, CONECT.
+
+BeEM may include SEQRES and DBREF.
 
 ## Usage ##
+Compile the C++ program:
 ```bash
-BeEM input.cif
+make BeEM
 ```
+Example usage:
+```bash
+curl https://files.rcsb.org/download/4U50.cif -o 4U50.cif
+BeEM 4U50.cif
+```
+Output files will be 4u50-pdb-bundle* for this example.
