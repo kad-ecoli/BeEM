@@ -19,7 +19,7 @@ BeEM may include SEQRES and DBREF.
 ## Usage ##
 Compile the C++ program:
 ```bash
-make BeEM
+g++ -O3 BeEM.cpp -o BeEM
 ```
 Example usage:
 ```bash
