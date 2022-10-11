@@ -2449,7 +2449,7 @@ int BeEM(const string &infile, string &pdbid)
     else
     {
         ifstream fp;
-        fp.open(infile,ios::in); //ifstream fp(filename,ios::in);
+        fp.open(infile.c_str(),ios::in); //ifstream fp(filename,ios::in);
         buf<<fp.rdbuf();
         fp.close();
     }
@@ -2804,8 +2804,8 @@ int BeEM(const string &infile, string &pdbid)
             }
             else if (_atom_site.count("pdbx_label_atom_id"))
                 atom_id=line_vec[_atom_site["pdbx_label_atom_id"]];
-            if ((atom_id[0]=='"'  && atom_id.back()=='"')||
-                (atom_id[0]=='\'' && atom_id.back()=='\''))
+            if ((atom_id[0]=='"'  && atom_id[atom_id.size()-1]=='"')||
+                (atom_id[0]=='\'' && atom_id[atom_id.size()-1]=='\''))
                 atom_id=atom_id.substr(1,atom_id.size()-2);
             atom_id=atom_id.substr(0,4);
             
