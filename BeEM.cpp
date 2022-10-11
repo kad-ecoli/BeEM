@@ -20,9 +20,17 @@ const char* docstring=""
 #include <fstream>
 #include <sstream>
 #include <map>
+#include <algorithm>
 using namespace std;
 
 /* StringTools START */
+string Upper(const string &inputString)
+{
+    string result=inputString;
+    transform(result.begin(), result.end(), result.begin(), ::toupper);
+    return result;
+}
+
 string Join(const string sep, const vector<string>& string_vec,
     const int joinFrom=0)
 {
@@ -38,13 +46,13 @@ string Join(const string sep, const vector<string>& string_vec,
  * line_vec      - output vector 
  * delimiter     - delimiter */
 void Split(const string &line, vector<string> &line_vec,
-    const char delimiter=' ')
+    const char delimiter=' ',const bool ignore_quotation=false)
 {
     bool within_word = false;
     bool within_quotation = false;
     for (size_t pos=0;pos<line.size();pos++)
     {
-        if (line[pos]=='"' || line[pos]=='\'')
+        if (ignore_quotation==false && (line[pos]=='"' || line[pos]=='\''))
         {
             if (within_quotation) within_quotation=false;
             else within_quotation=true;
@@ -74,6 +82,7 @@ string Trim(const string &inputString,const string &char_list=" \n\r\t")
     int idxEnd = inputString.find_last_not_of(char_list);
     if (idxBegin >= 0 && idxEnd >= 0)
         result = inputString.substr(idxBegin, idxEnd + 1 - idxBegin);
+    else result = "";
     return result;
 }
 
@@ -82,6 +91,7 @@ string lstrip(const string &inputString,const string &char_list=" \n\r\t")
     string result = inputString;
     int idxBegin = inputString.find_first_not_of(char_list);
     if (idxBegin >= 0) result = inputString.substr(idxBegin);
+    else result = "";
     return result;
 }
 
@@ -90,6 +100,7 @@ string rstrip(const string &inputString,const string &char_list=" \n\r\t")
     string result=inputString;
     int idxEnd = inputString.find_last_not_of(char_list);
     if (idxEnd >= 0) result = inputString.substr(0, idxEnd + 1);
+    else result = "";
     return result;
 }
 
@@ -2383,9 +2394,42 @@ namespace redi
 /* pstream END */
 /* main START */
 
+inline string formatANISOU(const string &inputString)
+{
+    string minus="";
+    string result=inputString;
+    if (StartsWith(inputString,"-"))
+    {
+        minus=inputString[0];
+        result=inputString.substr(1);
+    }
+    size_t found=result.find_first_of('.');
+    string pre_decimal="";
+    string post_decimal="0000";
+    if (found!=string::npos)
+    {
+        pre_decimal=result.substr(0,found);
+        post_decimal=result.substr(found+1,4);
+        while (post_decimal.size()<4) post_decimal+='0';
+    }
+    else pre_decimal=result;
+    result=lstrip(pre_decimal+post_decimal,"0");
+    if (result.size()==0) result="      0";
+    else result=minus+result;
+    pre_decimal.clear();
+    post_decimal.clear();
+    if (result.size()>7) result=result.substr(0,7);
+    else if (result.size()==6) result=" "+result;
+    else if (result.size()==5) result="  "+result; 
+    else if (result.size()==4) result="   "+result; 
+    else if (result.size()==3) result="    "+result; 
+    else if (result.size()==2) result="     "+result; 
+    else if (result.size()==1) result="      "+result; 
+    return result;
+}
+
 int BeEM(const string &infile, string &pdbid)
 {
-    vector<string> bundle_vec;
 
     stringstream buf;
     if (infile=="-") buf<<cin.rdbuf();
@@ -2406,7 +2450,7 @@ int BeEM(const string &infile, string &pdbid)
         fp.close();
     }
     vector<string> lines;
-    Split(buf.str(),lines,'\n'); 
+    Split(buf.str(),lines,'\n',true); 
     buf.str(string());
     if (lines.size()<=1)
     {
@@ -2422,6 +2466,7 @@ int BeEM(const string &infile, string &pdbid)
 
     map<string,int> _audit_author;
     map<string,int> _citation_author;
+    map<string,int> _atom_site;
     string _citation_title="";
     string _citation_pdbx_database_id_PubMed="";
     string _citation_pdbx_database_id_DOI="";
@@ -2433,7 +2478,36 @@ int BeEM(const string &infile, string &pdbid)
     string _citation_country="";
     string _citation_journal_id_ISSN="";
 
-    int l,i,j;
+    string group_PDB  ="ATOM"; // (ATOM/HETATM)
+    string type_symbol="C";    // (element symbol)
+    string atom_id    ="CA";   // auth_atom_id, label_atom_id (atom name)
+    string alt_id     =" ";    // auth_alt_id, label_alt_id
+                               // (alternative location indicator)
+    string comp_id    ="UNK";  // auth_comp_id, label_comp_id (residue name)
+    string asym_id    ="A"; // auth_asym_id, label_asym_id (chain ID)
+    string seq_id     ="   1"; // label_seq_id, auth_seq_id (residue index)
+    string pdbx_PDB_ins_code=" ";// (insertion code)
+    string Cartn_x    ="   0.000"; 
+    string Cartn_y    ="   0.000"; 
+    string Cartn_z    ="   0.000"; 
+    string occupancy  ="  1.00";
+    string B_iso_or_equiv="  0.00";   // Bfactor
+    string pdbx_formal_charge="  ";
+    string pdbx_PDB_model_num="   1"; // model index
+    string U11="  10000";
+    string U12="      0";
+    string U13="      0";
+    string U22="  10000";
+    string U23="      0";
+    string U33="  10000";
+
+    map<string,string> anisou_map;
+    map<string,size_t> chainAtomNum_map;
+    vector<string> chainID_vec;
+    vector<pair<string,string> > atomLine_vec;
+
+    size_t l;
+    int i,j;
     string line;
     vector<string> line_vec;
     vector<string> author_vec;
@@ -2448,13 +2522,14 @@ int BeEM(const string &infile, string &pdbid)
         {
             _audit_author.clear();
             _citation_author.clear();
+            _atom_site.clear();
         }
-        else if (l==0 && StartsWith(line,"data_"))
+        else if (l==0 && pdbid.size()==0 && StartsWith(line,"data_"))
         {
             Split(line,line_vec,'_');
             if (line_vec.size()>1) pdbid=line_vec[1];
         }
-        else if (pdbid.size()==0 && StartsWith(line,"_entry.id"))
+        else if (pdbid.size()==0 && pdbid.size()==0 && StartsWith(line,"_entry.id"))
         {
             Split(line,line_vec,' ');
             if (line_vec.size()>1) pdbid=line_vec[1];
@@ -2670,6 +2745,14 @@ int BeEM(const string &infile, string &pdbid)
             line=rstrip(line);
             _citation_author[line]=_citation_author.size();
         }
+        else if (StartsWith(line,"_atom_site.") || 
+                 StartsWith(line,"_atom_site_anisotrop."))
+        {
+            line=rstrip(line);
+            Split(line,line_vec,'.');
+            line=line_vec[1];
+            _atom_site[line]=_atom_site.size();
+        }
         else if (_audit_author.size() && 
                  _audit_author.count("_audit_author.name"))
         {
@@ -2680,7 +2763,7 @@ int BeEM(const string &infile, string &pdbid)
             Split(line,line_vec,',');
             if (line_vec.size()>=2)
                 line=lstrip(line_vec[1])+line_vec[0];
-            author_vec.push_back(line);
+            author_vec.push_back(Upper(line));
         }
         else if (_citation_author.size() && 
                  _citation_author.count("_citation_author.name"))
@@ -2694,9 +2777,225 @@ int BeEM(const string &infile, string &pdbid)
                 line=lstrip(line_vec[1])+line_vec[0];
             citation_author_vec.push_back(line);
         }
+        else if (_atom_site.size())
+        {
+            Split(line,line_vec,' ',true);
+            if (_atom_site.count("group_PDB"))
+                group_PDB=line_vec[_atom_site["group_PDB"]];
+            if (group_PDB=="ATOM") group_PDB="ATOM  ";
+            
+            if (_atom_site.count("auth_atom_id"))
+            {
+                atom_id=line_vec[_atom_site["auth_atom_id"]];
+                if (atom_id.size()>4 && _atom_site.count("label_atom_id"))
+                    atom_id=line_vec[_atom_site["label_atom_id"]];
+            }
+            else if (_atom_site.count("label_atom_id"))
+                atom_id=line_vec[_atom_site["label_atom_id"]];
+            else if (_atom_site.count("pdbx_auth_atom_id"))
+            {
+                atom_id=line_vec[_atom_site["pdbx_auth_atom_id"]];
+                if (atom_id.size()>4 && _atom_site.count("pdbx_label_atom_id"))
+                    atom_id=line_vec[_atom_site["pdbx_label_atom_id"]];
+            }
+            else if (_atom_site.count("pdbx_label_atom_id"))
+                atom_id=line_vec[_atom_site["pdbx_label_atom_id"]];
+            if ((atom_id[0]=='"'  && atom_id.back()=='"')||
+                (atom_id[0]=='\'' && atom_id.back()=='\''))
+                atom_id=atom_id.substr(1,atom_id.size()-2);
+            atom_id=atom_id.substr(0,4);
+            
+            if (_atom_site.count("type_symbol"))
+                type_symbol=line_vec[_atom_site["type_symbol"]].substr(0,2);
+            else type_symbol=lstrip(atom_id,"1234567890 ")[0];
+
+            if (type_symbol.size()==2) while (atom_id.size()<4) atom_id+=' ';
+            else
+            {
+                if (atom_id.size()==1) atom_id+=' ';
+                if (atom_id.size()==2) atom_id+=' ';
+                if (atom_id.size()==3) atom_id=' '+atom_id;
+            }
+            if (type_symbol.size()==1) type_symbol=' '+type_symbol;
+
+            if (_atom_site.count("auth_alt_id"))
+                alt_id=line_vec[_atom_site["auth_alt_id"]];
+            else if (_atom_site.count("label_alt_id"))
+                alt_id=line_vec[_atom_site["label_alt_id"]];
+            else if (_atom_site.count("pdbx_auth_alt_id"))
+                alt_id=line_vec[_atom_site["pdbx_auth_alt_id"]];
+            else if (_atom_site.count("pdbx_label_alt_id"))
+                alt_id=line_vec[_atom_site["pdbx_label_alt_id"]];
+            if (alt_id=="." || alt_id=="?") alt_id=" ";
+            else alt_id=alt_id[0];
+
+            if (_atom_site.count("auth_comp_id"))
+            {
+                comp_id=line_vec[_atom_site["auth_comp_id"]];
+                if (comp_id.size()>3 && _atom_site.count("label_comp_id"))
+                    comp_id=line_vec[_atom_site["label_comp_id"]];
+            }
+            else if (_atom_site.count("label_comp_id"))
+                comp_id=line_vec[_atom_site["label_comp_id"]];
+            else if (_atom_site.count("pdbx_auth_comp_id"))
+            {
+                comp_id=line_vec[_atom_site["pdbx_auth_comp_id"]];
+                if (comp_id.size()>3 && _atom_site.count("pdbx_label_comp_id"))
+                    comp_id=line_vec[_atom_site["pdbx_label_comp_id"]];
+            }
+            else if (_atom_site.count("pdbx_label_comp_id"))
+                comp_id=line_vec[_atom_site["pdbx_label_comp_id"]];
+            if      (comp_id.size()==1) comp_id="  "+comp_id;
+            else if (comp_id.size()==2) comp_id=" "+comp_id;
+            else if (comp_id.size()>3)  comp_id=comp_id.substr(0,3);
+
+            if (_atom_site.count("auth_asym_id"))
+                asym_id=line_vec[_atom_site["auth_asym_id"]];
+            else if (_atom_site.count("label_asym_id"))
+                asym_id=line_vec[_atom_site["label_asym_id"]];
+            else if (_atom_site.count("pdbx_auth_asym_id"))
+                asym_id=line_vec[_atom_site["pdbx_auth_asym_id"]];
+            else if (_atom_site.count("pdbx_label_asym_id"))
+                asym_id=line_vec[_atom_site["pdbx_label_asym_id"]];
+
+            if (_atom_site.count("auth_seq_id"))
+                seq_id=line_vec[_atom_site["auth_seq_id"]];
+            else if (_atom_site.count("label_seq_id"))
+                seq_id=line_vec[_atom_site["label_seq_id"]];
+            else if (_atom_site.count("pdbx_auth_seq_id"))
+                seq_id=line_vec[_atom_site["pdbx_auth_seq_id"]];
+            else if (_atom_site.count("pdbx_label_seq_id"))
+                seq_id=line_vec[_atom_site["pdbx_label_seq_id"]];
+            if (seq_id.size()>4) seq_id=seq_id.substr(seq_id.size()-4,4);
+            else if (seq_id.size()==3) seq_id=" "+seq_id;
+            else if (seq_id.size()==2) seq_id="  "+seq_id;
+            else if (seq_id.size()==1) seq_id="   "+seq_id;
+
+            if (_atom_site.count("pdbx_PDB_ins_code"))
+                pdbx_PDB_ins_code=line_vec[_atom_site["pdbx_PDB_ins_code"]];
+            if (pdbx_PDB_ins_code=="." || pdbx_PDB_ins_code=="?")
+                pdbx_PDB_ins_code=" ";
+            else pdbx_PDB_ins_code=pdbx_PDB_ins_code[0];
+
+            if (_atom_site.count("Cartn_z"))
+            {
+                Cartn_x=formatString(line_vec[_atom_site["Cartn_x"]],8,3);
+                Cartn_y=formatString(line_vec[_atom_site["Cartn_y"]],8,3);
+                Cartn_z=formatString(line_vec[_atom_site["Cartn_z"]],8,3);
+            }
+
+            if (_atom_site.count("aniso_U[3][3]"))
+            {
+                U11=formatANISOU(line_vec[_atom_site["aniso_U[1][1]"]]);
+                U12=formatANISOU(line_vec[_atom_site["aniso_U[1][2]"]]);
+                U13=formatANISOU(line_vec[_atom_site["aniso_U[1][3]"]]);
+                U22=formatANISOU(line_vec[_atom_site["aniso_U[2][2]"]]);
+                U23=formatANISOU(line_vec[_atom_site["aniso_U[2][3]"]]);
+                U33=formatANISOU(line_vec[_atom_site["aniso_U[3][3]"]]);
+            }
+            else if (_atom_site.count("U[3][3]"))
+            {
+                U11=formatANISOU(line_vec[_atom_site["U[1][1]"]]);
+                U12=formatANISOU(line_vec[_atom_site["U[1][2]"]]);
+                U13=formatANISOU(line_vec[_atom_site["U[1][3]"]]);
+                U22=formatANISOU(line_vec[_atom_site["U[2][2]"]]);
+                U23=formatANISOU(line_vec[_atom_site["U[2][3]"]]);
+                U33=formatANISOU(line_vec[_atom_site["U[3][3]"]]);
+            }
+
+
+            if (_atom_site.count("occupancy"))
+                occupancy=formatString(line_vec[_atom_site["occupancy"]],6,2);
+
+            if (_atom_site.count("B_iso_or_equiv"))
+                B_iso_or_equiv=formatString(line_vec[_atom_site["B_iso_or_equiv"]],6,2);
+
+            if (_atom_site.count("pdbx_formal_charge"))
+                pdbx_formal_charge=line_vec[_atom_site["pdbx_formal_charge"]];
+            if (pdbx_formal_charge=="." || pdbx_formal_charge=="?")
+                pdbx_formal_charge="  ";
+            else if (pdbx_formal_charge.size()==1)
+                pdbx_formal_charge+=' ';
+            else pdbx_formal_charge=pdbx_formal_charge.substr(0,2);
+
+            if (_atom_site.count("pdbx_PDB_model_num"))
+                pdbx_PDB_model_num=line_vec[_atom_site["pdbx_PDB_model_num"]];
+            if (pdbx_PDB_model_num=="." || pdbx_PDB_model_num=="?")
+                pdbx_PDB_model_num="   1";
+            else if (pdbx_PDB_model_num.size()==1) 
+                pdbx_PDB_model_num="   "+pdbx_PDB_model_num;
+            else if (pdbx_PDB_model_num.size()==2) 
+                pdbx_PDB_model_num="  "+pdbx_PDB_model_num;
+            else if (pdbx_PDB_model_num.size()==3) 
+                pdbx_PDB_model_num=" "+pdbx_PDB_model_num;
+
+            if (_atom_site.count("Cartn_z"))
+            {
+/*
+COLUMNS        DATA  TYPE    FIELD        DEFINITION
+-------------------------------------------------------------------------------------
+ 1 -  6        Record name   "ATOM  "
+ 7 - 11        Integer       serial       Atom  serial number.
+13 - 16        Atom          name         Atom name.
+17             Character     altLoc       Alternate location indicator.
+18 - 20        Residue name  resName      Residue name.
+22             Character     chainID      Chain identifier.
+23 - 26        Integer       resSeq       Residue sequence number.
+27             AChar         iCode        Code for insertion of residues.
+31 - 38        Real(8.3)     x            Orthogonal coordinates for X in Angstroms.
+39 - 46        Real(8.3)     y            Orthogonal coordinates for Y in Angstroms.
+47 - 54        Real(8.3)     z            Orthogonal coordinates for Z in Angstroms.
+55 - 60        Real(6.2)     occupancy    Occupancy.
+61 - 66        Real(6.2)     tempFactor   Temperature  factor.
+77 - 78        LString(2)    element      Element symbol, right-justified.
+79 - 80        LString(2)    charge       Charge  on the atom.
+*/
+                line=group_PDB+' '+pdbx_PDB_model_num+' '+atom_id+alt_id
+                    +comp_id+"  "+seq_id+pdbx_PDB_ins_code+"   "
+                    +Cartn_x+Cartn_y+Cartn_z+occupancy+B_iso_or_equiv
+                    +"          "+type_symbol+pdbx_formal_charge;
+                atomLine_vec.push_back(make_pair(line,asym_id));
+                if (pdbx_PDB_model_num=="   1")
+                {
+                    if (chainAtomNum_map.count(asym_id)==0)
+                    {
+                        chainID_vec.push_back(asym_id);
+                        chainAtomNum_map[asym_id]=1;
+                    }
+                    else chainAtomNum_map[asym_id]++;
+                }
+            }
+            if (pdbx_PDB_model_num=="   1" && (_atom_site.count("U[3][3]")||
+                                         _atom_site.count("aniso_U[3][3]")))
+            {
+                /*
+COLUMNS       DATA  TYPE    FIELD          DEFINITION
+-----------------------------------------------------------------
+ 1 - 6        Record name   "ANISOU"
+ 7 - 11       Integer       serial         Atom serial number.
+13 - 16       Atom          name           Atom name.
+17            Character     altLoc         Alternate location indicator
+18 - 20       Residue name  resName        Residue name.
+22            Character     chainID        Chain identifier.
+23 - 26       Integer       resSeq         Residue sequence number.
+27            AChar         iCode          Insertion code.
+29 - 35       Integer       u[0][0]        U(1,1)
+36 - 42       Integer       u[1][1]        U(2,2)
+43 - 49       Integer       u[2][2]        U(3,3)
+50 - 56       Integer       u[0][1]        U(1,2)
+57 - 63       Integer       u[0][2]        U(1,3)
+64 - 70       Integer       u[1][2]        U(2,3)
+77 - 78       LString(2)    element        Element symbol, right-justified.
+79 - 80       LString(2)    charge         Charge on the atom.
+                 */
+                anisou_map[atom_id+alt_id+comp_id+"  "+seq_id+
+                    pdbx_PDB_ins_code+'\t'+asym_id]=U11+U22+U33+U12+U13+U23;
+            }
+        }
 
         /* clean up */
         for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+        lines[i].clear();
     }
 
 
@@ -2704,7 +3003,7 @@ int BeEM(const string &infile, string &pdbid)
     if (pdbx_keywords.size() || recvd_initial_deposition_date.size())
     {
         buf<<"HEADER    "<<left<<setw(40)<<pdbx_keywords.substr(0,40)
-            <<recvd_initial_deposition_date.substr(0,9)<<"   XXXX              "<<endl;
+            <<recvd_initial_deposition_date.substr(0,10)<<"  XXXX              "<<endl;
         header=buf.str();
         buf.str(string());
     }
@@ -2901,17 +3200,164 @@ int BeEM(const string &infile, string &pdbid)
         "     "     +scale_mat[1][3]+"                         \n"+
         "SCALE3    "+scale_mat[2][0]+scale_mat[2][1]+scale_mat[2][2]+
         "     "     +scale_mat[2][3]+"                         \n";
+    
+    /* parse ATOM HETATM */
+    map<string,char> chainID_map;
+    map<string,int> bundleID_map;
+    int atomNum=0;
+    int bundleNum=1;
+    int chainIdx=0;
+    string chainID_list="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                        "abcdefghijklmnopqrstuvwxyz0123456789";
+    for (i=0;i<chainID_vec.size();i++)
+    {
+        asym_id=chainID_vec[i];
+        chainAtomNum_map[asym_id]++; // for TER
+        if (chainAtomNum_map[asym_id]+atomNum>99999 || chainIdx>=chainID_list.size())
+        {
+            atomNum=0;
+            bundleNum++;
+            chainIdx=0;
+        }
+        atomNum+=chainAtomNum_map[asym_id];
+        chainID_map[asym_id]=chainID_list[chainIdx];
+        bundleID_map[asym_id]=bundleNum;
+        chainIdx++;
+    }
+    
+    bundleNum=0;
+    ofstream fout;
+    string filename=pdbid+"-chain-id-mapping.txt";
+    vector<string>filename_vec;
+    map<string,int> filename_app_map;
+    fout.open(filename.c_str());
+    fout<<"    New chain ID            Original chain ID\n";
+    for (i=0;i<chainID_vec.size();i++)
+    {
+        asym_id=chainID_vec[i];
+        if (bundleID_map[asym_id]!=bundleNum)
+        {
+            bundleNum++;
+            buf<<pdbid<<"-pdb-bundle"<<bundleNum<<".pdb"<<flush;
+            filename=buf.str();
+            buf.str(string());
+            filename_vec.push_back(filename);
+            filename_app_map[filename]=0;
+            fout<<'\n'<<filename<<":\n";
+        }
+        fout<<"           "<<chainID_map[asym_id]<<setw(26)<<right<<asym_id<<'\n';
+    }
+    fout<<flush;
+    fout.close();
+    filename=pdbid+"-chain-id-mapping.txt";
+    filename_vec.push_back(filename);
+    filename_app_map[filename]=1;
+    
+    bundleNum=0;
+    string key;
+    char chainID=' ';
+    filename.clear();
+    map<string,int> chainID_ter_map;
+    for (l=0;l<atomLine_vec.size();l++)
+    {
+        if (l && chainID_ter_map.count(asym_id)==0 && 
+            (l+1==atomLine_vec.size() || asym_id!=atomLine_vec[l].second))
+        {
+            atomNum=(++filename_app_map[filename]);
+            fout<<"TER   "<<setw(5)<<right<<atomNum<<"      "
+                <<line.substr(17,3)<<' '<<chainID<<setw(58)
+                <<left<<line.substr(22,5)<<'\n';
+            chainID_ter_map[asym_id]=1;
+        }
+        line=atomLine_vec[l].first;
+        asym_id=atomLine_vec[l].second;
+        pdbx_PDB_model_num=line.substr(7,4);
 
-    cout<<header<<flush;
+        if (bundleID_map[asym_id]!=bundleNum)
+        {
+            bundleNum=bundleID_map[asym_id];
+            if (filename.size()) fout.close();
+            buf<<pdbid<<"-pdb-bundle"<<bundleNum<<".pdb"<<flush;
+            filename=buf.str();
+            buf.str(string());
+            if (filename_app_map[filename])
+                fout.open(filename.c_str(),ofstream::app);
+            else
+            {
+                fout.open(filename.c_str());
+                fout<<header;
+                cout<<filename<<endl;
+            }
+        }
+        atomNum=(++filename_app_map[filename]);
+        chainID=chainID_map[asym_id];
+        fout<<line.substr(0,6)<<setw(5)<<right<<atomNum
+            <<line.substr(11,10)<<chainID
+            <<line.substr(22)<<'\n';
+        if (anisou_map.size())
+        {
+            key=line.substr(12,15)+'\t'+asym_id;
+            if (anisou_map.count(key)) fout<<"ANISOU"<<setw(5)<<right
+                <<atomNum<<line.substr(11,10)<<chainID<<line.substr(22,6)
+                <<anisou_map[key]<<line.substr(70)<<'\n';
+        }
+    }
+    key.clear();
+    if (filename.size()) fout.close();
+    
+    for (i=0;i<filename_vec.size()-1;i++)
+    {
+        chainIdx=0;
+        for (j=0;j<chainID_vec.size();j++)
+            chainIdx+=(bundleID_map[chainID_vec[j]]==i+1);
+    /*
+COLUMNS         DATA TYPE     FIELD          DEFINITION
+----------------------------------------------------------------------------------
+ 1 -  6         Record name   "MASTER"
+11 - 15         Integer       numRemark      Number of REMARK records
+16 - 20         Integer       "0"
+21 - 25         Integer       numHet         Number of HET records
+26 - 30         Integer       numHelix       Number of HELIX records
+31 - 35         Integer       numSheet       Number of SHEET records
+36 - 40         Integer       numTurn        deprecated
+41 - 45         Integer       numSite        Number of SITE records
+46 - 50         Integer       numXform       Number of coordinate transformation
+                                             records  (ORIGX+SCALE+MTRIX)
+51 - 55         Integer       numCoord       Number of atomic coordinate records
+                                             records (ATOM+HETATM)
+56 - 60         Integer       numTer         Number of TER records
+61 - 65         Integer       numConect      Number of CONECT records
+66 - 70         Integer       numSeq         Number of SEQRES records
+    */
 
-    int bundleCount=bundle_vec.size();
+        filename=filename_vec[i];
+        fout.open(filename.c_str(),ofstream::app);
+        fout<<"MASTER        0    0    0    0    0    0    0    3"
+            <<setw(5)<<right<<filename_app_map[filename]-chainIdx
+            <<setw(5)<<right<<chainIdx<<"    0    0          \n"
+            <<setw(80)<<left<<"END"<<endl;
+        fout.close();
+    }
+    cout<<filename_vec.back()<<endl;
+
+    /* clean up */
+    map<string,char>().swap(chainID_map);
+    map<string,int> ().swap(bundleID_map);
+    vector<string>  ().swap(filename_vec);
+    map<string,int> ().swap(filename_app_map);
+    map<string,int> ().swap(chainID_ter_map);
+    chainID_list.clear();
+    filename.clear();
+
+    vector<string>().swap(filename_vec);
+    map<string,int>().swap(filename_app_map);
+
     vector<string>().swap(author_vec);
     vector<string>().swap(citation_author_vec);
     vector<string>().swap(cryst1_vec);
     vector<string>().swap(scale_vec);
     vector<vector<string> >().swap(scale_mat);
     vector<string>().swap(lines);
-    vector<string>().swap(bundle_vec);
     string ().swap(header);
     _citation_title.clear();
     _citation_pdbx_database_id_PubMed.clear();
@@ -2923,7 +3369,30 @@ int BeEM(const string &infile, string &pdbid)
     _citation_journal_id_ASTM.clear();
     _citation_country.clear();
     _citation_journal_id_ISSN.clear();
-    return bundleCount;
+
+    group_PDB.clear();
+    type_symbol.clear();
+    atom_id.clear();
+    alt_id.clear();
+    comp_id.clear();
+    asym_id.clear();
+    seq_id.clear();
+    pdbx_PDB_ins_code.clear();
+    Cartn_x.clear();
+    Cartn_y.clear();
+    Cartn_z.clear();
+    occupancy.clear();
+    B_iso_or_equiv.clear();
+    pdbx_formal_charge.clear();
+    pdbx_PDB_model_num.clear();
+    U11.clear();
+    U12.clear();
+    U13.clear();
+    U22.clear();
+    U23.clear();
+    U33.clear();
+    map<string,string>().swap(anisou_map);
+    return bundleNum;
 }
 
 int main(int argc,char **argv)
