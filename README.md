@@ -24,6 +24,6 @@ g++ -O3 BeEM.cpp -o BeEM
 Example usage:
 ```bash
 curl https://files.rcsb.org/download/4U50.cif -o 4U50.cif
-BeEM 4U50.cif
+BeEM 4U50.cif -p=4u50
 ```
 Output files will be 4u50-pdb-bundle* for this example.
