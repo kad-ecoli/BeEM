@@ -1,3 +1,7 @@
+/* Compile this program by: 
+ * $ g++ -O3 BeEM.cpp -o BeEM
+ */
+
 const char* docstring=""
 "BeEM input.cif\n"
 "    convert PDBx/mmCIF format input file 'input.cif' to Best Effort/Minimal\n"
