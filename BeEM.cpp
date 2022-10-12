@@ -2529,10 +2529,7 @@ int BeEM(const string &infile, string &pdbid)
             _atom_site.clear();
         }
         else if (l==0 && pdbid.size()==0 && StartsWith(line,"data_"))
-        {
-            Split(line,line_vec,'_');
-            if (line_vec.size()>1) pdbid=line_vec[1];
-        }
+            pdbid=line.substr(5);
         else if (pdbid.size()==0 && pdbid.size()==0 && StartsWith(line,"_entry.id"))
         {
             Split(line,line_vec,' ');
