@@ -133,8 +133,8 @@ inline string formatString(const string &inputString,const int width=8,
         found=result.find_first_of('.');
     }
     int curWidth=result.size();
-    if (curWidth-found<digit+1)
-        for (i=0;i<curWidth-found-1-digit;i++) result+='0';
+    if (curWidth<found+digit+1)
+        for (i=0;i<((found+digit+1)-curWidth);i++) result+='0';
     else if (curWidth-found>digit+1) result=result.substr(0,found+digit+1);
     if (width)
     {
@@ -2467,10 +2467,17 @@ int BeEM(const string &infile, string &pdbid)
      * HEADER, AUTHOR, JRNL, CRYST1, SCALEn */
     string pdbx_keywords="";
     string recvd_initial_deposition_date="";
+    bool loop_=false;
 
     map<string,int> _audit_author;
     map<string,int> _citation_author;
+    map<string,int> _citation;
+    map<string,int> _cell;
+    map<string,int> fract_transf_;
     map<string,int> _atom_site;
+    map<string,int> _symmetry;
+    map<string,int> _struct_keywords;
+    map<string,int> _pdbx_database_status;
     string _citation_title="";
     string _citation_pdbx_database_id_PubMed="";
     string _citation_pdbx_database_id_DOI="";
@@ -2481,7 +2488,6 @@ int BeEM(const string &infile, string &pdbid)
     string _citation_journal_id_ASTM="";
     string _citation_country="";
     string _citation_journal_id_ISSN="";
-    string _citation_author_citation_id="primary";
 
     string group_PDB  ="ATOM"; // (ATOM/HETATM)
     string type_symbol="C";    // (element symbol)
@@ -2515,6 +2521,7 @@ int BeEM(const string &infile, string &pdbid)
     int i,j;
     string line;
     vector<string> line_vec;
+    vector<string> line_append_vec;
     vector<string> author_vec;
     vector<string> citation_author_vec;
     vector<string> cryst1_vec(8,"");
@@ -2527,91 +2534,293 @@ int BeEM(const string &infile, string &pdbid)
              Split(line,line_vec,' ',true);
         else Split(line,line_vec,' ');
         //cout<<"["<<l<<"] "<<line<<endl;
-        if (line_vec.size()==1 && line_vec[0]=="#")
+        if (line_vec.size()==0) continue;
+        else if (line_vec.size()==1 && line_vec[0]=="#")
         {
             _audit_author.clear();
             _citation_author.clear();
+            _citation.clear();
+            _cell.clear();
+            fract_transf_.clear();
             _atom_site.clear();
+            _symmetry.clear();
+            _struct_keywords.clear();
+            _pdbx_database_status.clear();
+            loop_=false;
         }
-        else if (pdbid.size()==0)
+        else if (line_vec.size()==1 && line_vec[0]=="loop_")
+            loop_=true;
+        else if (pdbid.size()==0 && l==0 && StartsWith(line,"data_"))
+            pdbid=line.substr(5);
+        else if (pdbid.size()==0 && line_vec.size()>1 && line_vec[0]=="_entry.id")
+            pdbid=line_vec[1];
+        else if (StartsWith(line,"_struct_keywords"))
         {
-            if (l==0 && StartsWith(line,"data_"))
-                pdbid=line.substr(5);
-            else if (line_vec.size()>1 && line_vec[0]=="_entry.id")
-                pdbid=line_vec[1];
+            if (loop_)
+            {
+                j=_struct_keywords.size();
+                line=line_vec[0];
+                _struct_keywords[line]=j;
+            }
+            else if (line_vec.size()>1)
+            {
+                if (line_vec[0]=="_struct_keywords.pdbx_keywords")
+                    pdbx_keywords+=Trim(line_vec[1],"'\"");
+            }
         }
-        else if (line_vec.size()>1 && line_vec[0]=="_struct_keywords.pdbx_keywords")
-            pdbx_keywords+=Trim(line_vec[1],"'\"");
-        else if (line_vec.size()>1 && line_vec[0]=="_pdbx_database_status.recvd_initial_deposition_date")
-            recvd_initial_deposition_date=line_vec[1];
-        else if (line_vec.size()>1 && StartsWith(line,"_citation."))
+        else if (_struct_keywords.size() && 
+            _struct_keywords.count("_struct_keywords.pdbx_keywords"))
         {
-            if      (line_vec[0]=="_citation.title")
-                _citation_title=Trim(line_vec[1],"'\"");
-            else if (line_vec[0]=="_citation.pdbx_database_id_PubMed")
-                _citation_pdbx_database_id_PubMed=line_vec[1];
-            else if (line_vec[0]=="_citation.pdbx_database_id_DOI")
-                _citation_pdbx_database_id_DOI=line_vec[1];
-            else if (line_vec[0]=="_citation.journal_abbrev")
-                _citation_journal_abbrev=Trim(line_vec[1],"'\"");
-            else if (line_vec[0]=="_citation.journal_volume")
-                _citation_journal_volume=line_vec[1];
-            else if (line_vec[0]=="_citation.page_first")
-                _citation_page_first=line_vec[1];
-            else if (line_vec[0]=="_citation.year")
-                _citation_year=line_vec[1];
-            else if (line_vec[0]=="_citation.journal_id_ASTM")
-                _citation_journal_id_ASTM=Trim(line_vec[1],"'\"");
-            else if (line_vec[0]=="_citation.country")
-                _citation_country=Trim(line_vec[1],"'\"");
-            else if (line_vec[0]=="_citation.journal_id_ISSN")
-                _citation_journal_id_ISSN=line_vec[1];
+            pdbx_keywords+=Trim(line_vec[_struct_keywords[
+                "_struct_keywords.pdbx_keywords"]],"'\"");
         }
-        else if (line_vec.size()>1 && StartsWith(line,"_cell."))
+        else if (StartsWith(line,"_pdbx_database_status."))
         {
-            if      (line_vec[0]=="_cell.length_a")
-                cryst1_vec[0]=formatString(line_vec[1],9,3);
-            else if (line_vec[0]=="_cell.length_b")
-                cryst1_vec[1]=formatString(line_vec[1],9,3);
-            else if (line_vec[0]=="_cell.length_c")
-                cryst1_vec[2]=formatString(line_vec[1],9,3);
-            else if (line_vec[0]=="_cell.angle_alpha")
-                cryst1_vec[3]=formatString(line_vec[1],7,2);
-            else if (line_vec[0]=="_cell.angle_beta")
-                cryst1_vec[4]=formatString(line_vec[1],7,2);
-            else if (line_vec[0]=="_cell.angle_gamma")
-                cryst1_vec[5]=formatString(line_vec[1],7,2);
-            else if (line_vec[0]=="_cell.Z_PDB")
-                cryst1_vec[7]=line_vec[1];
+            if (loop_)
+            {
+                j=_pdbx_database_status.size();
+                line=line_vec[0];
+                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                Split(line,line_vec,'.');
+                if (line_vec.size()>1)
+                {
+                    line=line_vec[1];
+                    _pdbx_database_status[line]=j;
+                }
+
+            }
+            else if (line_vec.size()>1)
+            {
+                if (line_vec[0]=="_pdbx_database_status.recvd_initial_deposition_date")
+                    recvd_initial_deposition_date=line_vec[1];
+            }
         }
-        else if (line_vec.size()>1 && line_vec[0]=="_symmetry.space_group_name_H-M")
-            cryst1_vec[6]=Trim(line_vec[1],"'\"").substr(0,11);
-        else if (line_vec.size()>1 && StartsWith(line,"_atom_sites.fract_transf_"))
+        else if (_pdbx_database_status.size() && 
+            _pdbx_database_status.count("recvd_initial_deposition_date"))
         {
-            if      (line_vec[0]=="_atom_sites.fract_transf_matrix[1][1]")
-                scale_mat[0][0]=formatString(line_vec[1],10,6);
-            else if (line_vec[0]=="_atom_sites.fract_transf_matrix[1][2]")
-                scale_mat[0][1]=formatString(line_vec[1],10,6);
-            else if (line_vec[0]=="_atom_sites.fract_transf_matrix[1][3]")
-                scale_mat[0][2]=formatString(line_vec[1],10,6);
-            else if (line_vec[0]=="_atom_sites.fract_transf_matrix[2][1]")
-                scale_mat[1][0]=formatString(line_vec[1],10,6);
-            else if (line_vec[0]=="_atom_sites.fract_transf_matrix[2][2]")
-                scale_mat[1][1]=formatString(line_vec[1],10,6);
-            else if (line_vec[0]=="_atom_sites.fract_transf_matrix[2][3]")
-                scale_mat[1][2]=formatString(line_vec[1],10,6);
-            else if (line_vec[0]=="_atom_sites.fract_transf_matrix[3][1]")
-                scale_mat[2][0]=formatString(line_vec[1],10,6);
-            else if (line_vec[0]=="_atom_sites.fract_transf_matrix[3][2]")
-                scale_mat[2][1]=formatString(line_vec[1],10,6);
-            else if (line_vec[0]=="_atom_sites.fract_transf_matrix[3][3]")
-                scale_mat[2][2]=formatString(line_vec[1],10,6);
-            else if (line_vec[0]=="_atom_sites.fract_transf_vector[1]")
-                scale_mat[0][3]=formatString(line_vec[1],10,5);
-            else if (line_vec[0]=="_atom_sites.fract_transf_vector[2]")
-                scale_mat[1][3]=formatString(line_vec[1],10,5);
-            else if (line_vec[0]=="_atom_sites.fract_transf_vector[3]")
-                scale_mat[2][3]=formatString(line_vec[1],10,5);
+            recvd_initial_deposition_date=line_vec[
+                _pdbx_database_status["recvd_initial_deposition_date"]];
+        }
+        else if (StartsWith(line,"_citation."))
+        {
+            if (loop_)
+            {
+                line=line_vec[0];
+                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                Split(line,line_vec,'.');
+                if (line_vec.size()>1)
+                {
+                    j=_citation.size();
+                    line=line_vec[1];
+                    _citation[line]=j;
+                }
+            }
+            else if (line_vec.size()>1)
+            {
+                if      (line_vec[0]=="_citation.title")
+                    _citation_title=Trim(line_vec[1],"'\"");
+                else if (line_vec[0]=="_citation.pdbx_database_id_PubMed")
+                    _citation_pdbx_database_id_PubMed=line_vec[1];
+                else if (line_vec[0]=="_citation.pdbx_database_id_DOI")
+                    _citation_pdbx_database_id_DOI=line_vec[1];
+                else if (line_vec[0]=="_citation.journal_abbrev")
+                    _citation_journal_abbrev=Trim(line_vec[1],"'\"");
+                else if (line_vec[0]=="_citation.journal_volume")
+                    _citation_journal_volume=line_vec[1];
+                else if (line_vec[0]=="_citation.page_first")
+                    _citation_page_first=line_vec[1];
+                else if (line_vec[0]=="_citation.year")
+                    _citation_year=line_vec[1];
+                else if (line_vec[0]=="_citation.journal_id_ASTM")
+                    _citation_journal_id_ASTM=Trim(line_vec[1],"'\"");
+                else if (line_vec[0]=="_citation.country")
+                    _citation_country=Trim(line_vec[1],"'\"");
+                else if (line_vec[0]=="_citation.journal_id_ISSN")
+                    _citation_journal_id_ISSN=line_vec[1];
+            }
+        }
+        else if (_citation.size() && (_citation.count("id")==0 ||
+                 line_vec[_citation["id"]]=="primary"))
+        {
+            while (line_vec.size()<_citation.size())
+            {
+                l++;
+                Split(lines[l],line_append_vec,' ');
+                for (i=0;i<line_append_vec.size();i++)
+                {
+                    line_vec.push_back(line_append_vec[i]);
+                    line_append_vec[i].clear();
+                }
+                line_append_vec.clear();
+            }
+            if (_citation.count("title"))
+                _citation_title=Trim(line_vec[_citation["title"]],"'\"");
+            if (_citation.count("pdbx_database_id_PubMed"))
+                _citation_pdbx_database_id_PubMed=line_vec[
+                _citation["pdbx_database_id_PubMed"]];
+            if (_citation.count("pdbx_database_id_DOI"))
+                _citation_pdbx_database_id_DOI=line_vec[
+                _citation["pdbx_database_id_DOI"]];
+            if (_citation.count("journal_abbrev"))
+                _citation_journal_abbrev=Trim(line_vec[
+                _citation["journal_abbrev"]],"'\"");
+            if (_citation.count("journal_volume"))
+                _citation_journal_volume=line_vec[_citation["journal_volume"]];
+            if (_citation.count("page_first"))
+                _citation_page_first=line_vec[_citation["page_first"]];
+            if (_citation.count("year"))
+                _citation_year=line_vec[_citation["year"]];
+            if (_citation.count("journal_id_ASTM"))
+                _citation_journal_id_ASTM=Trim(line_vec[
+                _citation["journal_id_ASTM"]],"'\"");
+            if (_citation.count("country"))
+                _citation_country=Trim(line_vec[_citation["country"]],"'\"");
+            if (_citation.count("journal_id_ISSN"))
+                _citation_journal_id_ISSN=line_vec[_citation["journal_id_ISSN"]];
+        }
+        else if (StartsWith(line,"_cell."))
+        {
+            if (loop_)
+            {
+                j=_cell.size();
+                line=line_vec[0];
+                _cell[line]=j;
+            }
+            else if (line_vec.size()>1)
+            {
+                if      (line_vec[0]=="_cell.length_a")
+                    cryst1_vec[0]=formatString(line_vec[1],9,3);
+                else if (line_vec[0]=="_cell.length_b")
+                    cryst1_vec[1]=formatString(line_vec[1],9,3);
+                else if (line_vec[0]=="_cell.length_c")
+                    cryst1_vec[2]=formatString(line_vec[1],9,3);
+                else if (line_vec[0]=="_cell.angle_alpha")
+                    cryst1_vec[3]=formatString(line_vec[1],7,2);
+                else if (line_vec[0]=="_cell.angle_beta")
+                    cryst1_vec[4]=formatString(line_vec[1],7,2);
+                else if (line_vec[0]=="_cell.angle_gamma")
+                    cryst1_vec[5]=formatString(line_vec[1],7,2);
+                else if (line_vec[0]=="_cell.Z_PDB")
+                    cryst1_vec[7]=line_vec[1];
+            }
+        }
+        else if (_cell.size())
+        {
+            if (_cell.count("_cell.length_a"))    cryst1_vec[0]=
+                formatString(line_vec[_cell["_cell.length_a"]],9,3);
+            if (_cell.count("_cell.length_b"))    cryst1_vec[1]=
+                formatString(line_vec[_cell["_cell.length_b"]],9,3);
+            if (_cell.count("_cell.length_c"))    cryst1_vec[2]=
+                formatString(line_vec[_cell["_cell.length_c"]],9,3);
+            if (_cell.count("_cell.angle_alpha")) cryst1_vec[3]=
+                formatString(line_vec[_cell["_cell.angle_alpha"]],7,2);
+            if (_cell.count("_cell.angle_beta"))  cryst1_vec[4]=
+                formatString(line_vec[_cell["_cell.angle_beta"]],7,2);
+            if (_cell.count("_cell.angle_gamma")) cryst1_vec[5]=
+                formatString(line_vec[_cell["_cell.angle_gamma"]],7,2);
+            if (_cell.count("_cell.Z_PDB"))       cryst1_vec[7]=
+                line_vec[_cell["_cell.Z_PDB"]];
+        }
+        else if (StartsWith(line,"_symmetry"))
+        {
+            if (loop_)
+            {
+                j=_symmetry.size();
+                line=line_vec[0];
+                _symmetry[line]=j;
+            }
+            else if (line_vec.size()>1)
+            {
+                if (line_vec[0]=="_symmetry.space_group_name_H-M")
+                    cryst1_vec[6]=Trim(line_vec[1],"'\"").substr(0,11);
+            }
+        }
+        else if (_symmetry.size() && 
+             _symmetry.count("_symmetry.space_group_name_H-M"))
+        {
+            cryst1_vec[6]=Trim(line_vec[_symmetry[
+                "_symmetry.space_group_name_H-M"]],"'\"").substr(0,11);
+        }
+        else if (StartsWith(line,"_atom_sites.fract_transf_"))
+        {
+            if (loop_)
+            {
+                line=line_vec[0];
+                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                Split(line,line_vec,'.');
+                if (line_vec.size()>1)
+                {
+                    j=fract_transf_.size();
+                    line=line_vec[1];
+                    fract_transf_[line]=j;
+                }
+            }
+            else if (line_vec.size()>1)
+            {
+                if      (line_vec[0]=="_atom_sites.fract_transf_matrix[1][1]")
+                    scale_mat[0][0]=formatString(line_vec[1],10,6);
+                else if (line_vec[0]=="_atom_sites.fract_transf_matrix[1][2]")
+                    scale_mat[0][1]=formatString(line_vec[1],10,6);
+                else if (line_vec[0]=="_atom_sites.fract_transf_matrix[1][3]")
+                    scale_mat[0][2]=formatString(line_vec[1],10,6);
+                else if (line_vec[0]=="_atom_sites.fract_transf_matrix[2][1]")
+                    scale_mat[1][0]=formatString(line_vec[1],10,6);
+                else if (line_vec[0]=="_atom_sites.fract_transf_matrix[2][2]")
+                    scale_mat[1][1]=formatString(line_vec[1],10,6);
+                else if (line_vec[0]=="_atom_sites.fract_transf_matrix[2][3]")
+                    scale_mat[1][2]=formatString(line_vec[1],10,6);
+                else if (line_vec[0]=="_atom_sites.fract_transf_matrix[3][1]")
+                    scale_mat[2][0]=formatString(line_vec[1],10,6);
+                else if (line_vec[0]=="_atom_sites.fract_transf_matrix[3][2]")
+                    scale_mat[2][1]=formatString(line_vec[1],10,6);
+                else if (line_vec[0]=="_atom_sites.fract_transf_matrix[3][3]")
+                    scale_mat[2][2]=formatString(line_vec[1],10,6);
+                else if (line_vec[0]=="_atom_sites.fract_transf_vector[1]")
+                    scale_mat[0][3]=formatString(line_vec[1],10,5);
+                else if (line_vec[0]=="_atom_sites.fract_transf_vector[2]")
+                    scale_mat[1][3]=formatString(line_vec[1],10,5);
+                else if (line_vec[0]=="_atom_sites.fract_transf_vector[3]")
+                    scale_mat[2][3]=formatString(line_vec[1],10,5);
+            }
+        }
+        else if (fract_transf_.size())
+        {
+            if (fract_transf_.count("fract_transf_matrix[1][1]"))
+                scale_mat[0][0]=formatString(line_vec[fract_transf_[
+                     "fract_transf_matrix[1][1]"]],10,6);
+            if (fract_transf_.count("fract_transf_matrix[1][2]"))
+                scale_mat[0][1]=formatString(line_vec[fract_transf_[
+                    "fract_transf_matrix[1][2]"]],10,6);
+            if (fract_transf_.count("fract_transf_matrix[1][3]"))
+                scale_mat[0][2]=formatString(line_vec[fract_transf_[
+                    "fract_transf_matrix[1][3]"]],10,6);
+            if (fract_transf_.count("fract_transf_matrix[2][1]"))
+                scale_mat[1][0]=formatString(line_vec[fract_transf_[
+                    "fract_transf_matrix[2][1]"]],10,6);
+            if (fract_transf_.count("fract_transf_matrix[2][2]"))
+                scale_mat[1][1]=formatString(line_vec[fract_transf_[
+                    "fract_transf_matrix[2][2]"]],10,6);
+            if (fract_transf_.count("fract_transf_matrix[2][3]"))
+                scale_mat[1][2]=formatString(line_vec[fract_transf_[
+                    "fract_transf_matrix[2][3]"]],10,6);
+            if (fract_transf_.count("fract_transf_matrix[3][1]"))
+                scale_mat[2][0]=formatString(line_vec[fract_transf_[
+                    "fract_transf_matrix[3][1]"]],10,6);
+            if (fract_transf_.count("fract_transf_matrix[3][2]"))
+                scale_mat[2][1]=formatString(line_vec[fract_transf_[
+                    "fract_transf_matrix[3][2]"]],10,6);
+            if (fract_transf_.count("fract_transf_matrix[3][3]"))
+                scale_mat[2][2]=formatString(line_vec[fract_transf_[
+                    "fract_transf_matrix[3][3]"]],10,6);
+            if (fract_transf_.count("fract_transf_vector[1]"))
+                scale_mat[0][3]=formatString(line_vec[fract_transf_[
+                    "fract_transf_vector[1]"]],10,5);
+            if (fract_transf_.count("fract_transf_vector[2]"))
+                scale_mat[1][3]=formatString(line_vec[fract_transf_[
+                    "fract_transf_vector[2]"]],10,5);
+            if (fract_transf_.count("fract_transf_vector[3]"))
+                scale_mat[2][3]=formatString(line_vec[fract_transf_[
+                    "fract_transf_vector[3]"]],10,5);
         }
         else if (StartsWith(line,"_audit_author"))
         {
@@ -2619,11 +2828,39 @@ int BeEM(const string &infile, string &pdbid)
             j=_audit_author.size();
             _audit_author[line]=j;
         }
+        else if (_audit_author.size() && 
+                 _audit_author.count("_audit_author.name"))
+        {
+            line=line_vec[_audit_author["_audit_author.name"]];
+            line=Trim(line,"'\"");
+            for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+            Split(line,line_vec,',');
+            if (line_vec.size()>=2) line=lstrip(line_vec[1])+line_vec[0];
+            author_vec.push_back(Upper(line));
+        }
         else if (StartsWith(line,"_citation_author"))
         {
             line=line_vec[0];
-            j=_citation_author.size();
-            _citation_author[line]=j;
+            for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+            Split(line,line_vec,'.');
+            if (line_vec.size()>1)
+            {
+                line=line_vec[1];
+                j=_citation_author.size();
+                _citation_author[line]=j;
+            }
+        }
+        else if (_citation_author.size() && _citation_author.count("name") 
+             && (_citation_author.count("citation_id")==0 || 
+             line_vec[_citation_author["citation_id"]]=="primary"))
+        {
+            line=line_vec[_citation_author["name"]];
+            line=Trim(line,"'\"");
+            for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+            Split(line,line_vec,',');
+            if (line_vec.size()>=2)
+                line=lstrip(line_vec[1])+line_vec[0];
+            citation_author_vec.push_back(line);
         }
         else if (StartsWith(line,"_atom_site.") || 
                  StartsWith(line,"_atom_site_anisotrop."))
@@ -2636,33 +2873,6 @@ int BeEM(const string &infile, string &pdbid)
                 line=line_vec[1];
                 j=_atom_site.size();
                 _atom_site[line]=j;
-            }
-        }
-        else if (_audit_author.size() && 
-                 _audit_author.count("_audit_author.name"))
-        {
-            line=line_vec[_audit_author["_audit_author.name"]];
-            line=Trim(line,"'\"");
-            for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
-            Split(line,line_vec,',');
-            if (line_vec.size()>=2) line=lstrip(line_vec[1])+line_vec[0];
-            author_vec.push_back(Upper(line));
-        }
-        else if (_citation_author.size() && 
-                 _citation_author.count("_citation_author.name"))
-        {
-            if (_citation_author.count("_citation_author.citation_id"))
-                _citation_author_citation_id=
-                    line_vec[_citation_author["_citation_author.citation_id"]];
-            if (_citation_author_citation_id=="primary")
-            {
-                line=line_vec[_citation_author["_citation_author.name"]];
-                line=Trim(line,"'\"");
-                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
-                Split(line,line_vec,',');
-                if (line_vec.size()>=2)
-                    line=lstrip(line_vec[1])+line_vec[0];
-                citation_author_vec.push_back(line);
             }
         }
         else if (_atom_site.size())
@@ -3034,7 +3244,11 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         if (line.size())
         {
             if (_citation_journal_volume.size())
-                _citation_journal_volume="V. "+_citation_journal_volume;
+            {
+                while (_citation_journal_volume.size()<4)
+                    _citation_journal_volume=' '+_citation_journal_volume;
+                _citation_journal_volume="V."+_citation_journal_volume;
+            }
             buf<<left<<setw(49)<<line
                 <<setw(6)<<left<<_citation_journal_volume.substr(0,6)
                 <<' '<<setw(5)<<right<<_citation_page_first.substr(0,5)
@@ -3227,6 +3441,16 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     cout<<filename_vec.back()<<endl;
 
     /* clean up */
+    map<string,int> ().swap(_audit_author);
+    map<string,int> ().swap(_citation_author);
+    map<string,int> ().swap(_citation);
+    map<string,int> ().swap(_cell);
+    map<string,int> ().swap(fract_transf_);
+    map<string,int> ().swap(_atom_site);
+    map<string,int> ().swap(_symmetry);
+    map<string,int> ().swap(_pdbx_database_status);
+    map<string,int> ().swap(_struct_keywords);
+    
     map<string,char>().swap(chainID_map);
     map<string,int> ().swap(bundleID_map);
     vector<string>  ().swap(filename_vec);
@@ -3244,6 +3468,8 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     vector<string>().swap(scale_vec);
     vector<vector<string> >().swap(scale_mat);
     vector<string>().swap(lines);
+    vector<string>().swap(line_vec);
+    vector<string>().swap(line_append_vec);
     string ().swap(header);
     _citation_title.clear();
     _citation_pdbx_database_id_PubMed.clear();
@@ -3255,7 +3481,6 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     _citation_journal_id_ASTM.clear();
     _citation_country.clear();
     _citation_journal_id_ISSN.clear();
-    _citation_author_citation_id.clear();
 
     group_PDB.clear();
     type_symbol.clear();
