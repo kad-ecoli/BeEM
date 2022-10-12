@@ -2742,12 +2742,14 @@ int BeEM(const string &infile, string &pdbid)
         else if (StartsWith(line,"_audit_author"))
         {
             line=rstrip(line);
-            _audit_author[line]=_audit_author.size();
+            j=_audit_author.size();
+            _audit_author[line]=j;
         }
         else if (StartsWith(line,"_citation_author"))
         {
             line=rstrip(line);
-            _citation_author[line]=_citation_author.size();
+            j=_citation_author.size();
+            _citation_author[line]=j;
         }
         else if (StartsWith(line,"_atom_site.") || 
                  StartsWith(line,"_atom_site_anisotrop."))
@@ -2755,7 +2757,8 @@ int BeEM(const string &infile, string &pdbid)
             line=rstrip(line);
             Split(line,line_vec,'.');
             line=line_vec[1];
-            _atom_site[line]=_atom_site.size();
+            j=_atom_site.size();
+            _atom_site[line]=j;
         }
         else if (_audit_author.size() && 
                  _audit_author.count("_audit_author.name"))
@@ -2765,8 +2768,7 @@ int BeEM(const string &infile, string &pdbid)
             line=Trim(line,"'\"");
             for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
             Split(line,line_vec,',');
-            if (line_vec.size()>=2)
-                line=lstrip(line_vec[1])+line_vec[0];
+            if (line_vec.size()>=2) line=lstrip(line_vec[1])+line_vec[0];
             author_vec.push_back(Upper(line));
         }
         else if (_citation_author.size() && 
