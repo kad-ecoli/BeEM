@@ -3026,7 +3026,7 @@ int BeEM(const string &infile, string &pdbid)
             else if (pdbx_PDB_model_num.size()==3) 
                 pdbx_PDB_model_num=" "+pdbx_PDB_model_num;
 
-            if (_atom_site.count("Cartn_z"))
+            if (pdbx_PDB_model_num=="   1" && _atom_site.count("Cartn_z"))
             {
 /*
 COLUMNS        DATA  TYPE    FIELD        DEFINITION
