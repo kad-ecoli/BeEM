@@ -2650,8 +2650,19 @@ int BeEM(const string &infile, string &pdbid)
                     _citation[line]=j;
                 }
             }
-            else if (line_vec.size()>1)
+            else
             {
+                while (line_vec.size()<=1)
+                {
+                    l++;
+                    Split(lines[l],line_append_vec,' ');
+                    for (i=0;i<line_append_vec.size();i++)
+                    {
+                        line_vec.push_back(line_append_vec[i]);
+                        line_append_vec[i].clear();
+                    }
+                    line_append_vec.clear();
+                }
                 if      (line_vec[0]=="_citation.title")
                     _citation_title=Trim(line_vec[1],"'\"");
                 else if (line_vec[0]=="_citation.pdbx_database_id_PubMed")
