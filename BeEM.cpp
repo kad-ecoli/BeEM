@@ -8,7 +8,7 @@ const char* docstring=""
 "    PDB files. Output results to *-pdb-bundle*\n"
 "\n"
 "option:\n"
-"    -p=xxxx          PDB ID. default is to read from the input file\n"
+"    -p=xxxx          prefix of output file. default is the PDB ID read from the input\n"
 "    -seqres={0,1}    whether to convert SEQRES record\n"
 "                     0 - (default) do not convert SEQRES\n"
 "                     1 - convert SEQRES\n"
@@ -34,6 +34,13 @@ string Upper(const string &inputString)
 {
     string result=inputString;
     transform(result.begin(), result.end(), result.begin(), ::toupper);
+    return result;
+}
+
+string Lower(const string &inputString)
+{
+    string result=inputString;
+    transform(result.begin(), result.end(), result.begin(), ::tolower);
     return result;
 }
 
@@ -2582,6 +2589,17 @@ int BeEM(const string &infile, string &pdbid)
     for (l=0;l<lines.size();l++)
     {
         line=lines[l];
+        if (l+1<lines.size() && StartsWith(lines[l+1],";"))
+        {
+            while(l+1<lines.size() && Trim(lines[l+1])!=";")
+            {
+                l++;
+                if (!StartsWith(lines[l],";")) line+=lines[l];
+                else line+=" \""+lines[l].substr(1);
+            }
+            line+="\"";
+        }
+
         if (_atom_site.size() && !StartsWith(line,"_atom_site"))
              Split(line,line_vec,' ',true);
         else Split(line,line_vec,' ');
@@ -2604,9 +2622,9 @@ int BeEM(const string &infile, string &pdbid)
         else if (line_vec.size()==1 && line_vec[0]=="loop_")
             loop_=true;
         else if (pdbid.size()==0 && l==0 && StartsWith(line,"data_"))
-            pdbid=line.substr(5);
+            pdbid=Lower(line.substr(5));
         else if (pdbid.size()==0 && line_vec.size()>1 && line_vec[0]=="_entry.id")
-            pdbid=line_vec[1];
+            pdbid=Lower(line_vec[1]);
         else if (StartsWith(line,"_struct_keywords"))
         {
             if (loop_)
@@ -3439,7 +3457,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     {
         asym_id=chainID_vec[i];
         chainAtomNum_map[asym_id]++; // for TER
-        if (chainAtomNum_map[asym_id]+atomNum>99999 || chainIdx>=chainID_list.size())
+        if (chainAtomNum_map[asym_id]+atomNum>=99999 || chainIdx>=chainID_list.size())
         {
             atomNum=0;
             bundleNum++;
