@@ -3414,13 +3414,13 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     }
 
     bool remap_chainID=false;
-    //for (j=1;j<=bundleNum;j++)
+    for (j=1;j<=bundleNum;j++)
     {
         remap_chainID=false;
         for (i=0;i<chainID_vec.size();i++)
         {
             asym_id=chainID_vec[i];
-            if (bundleID_map[asym_id]!=bundleNum) continue;
+            if (bundleID_map[asym_id]!=j) continue;
             if (asym_id.size()>1)
             {
                 remap_chainID=true;
@@ -3432,7 +3432,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             for (i=0;i<chainID_vec.size();i++)
             {
                 asym_id=chainID_vec[i];
-                if (bundleID_map[asym_id]!=bundleNum) continue;
+                if (bundleID_map[asym_id]!=j) continue;
                 chainID_map[asym_id]=asym_id[0];
             }
         }
