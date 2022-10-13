@@ -25,6 +25,8 @@ const char* docstring=""
 #include <sstream>
 #include <map>
 #include <algorithm>
+#include <iomanip>
+#include <cmath>
 using namespace std;
 
 /* StringTools START */
@@ -154,7 +156,18 @@ inline string formatString(const string &inputString,const int width=8,
     int curWidth=result.size();
     if (curWidth<found+digit+1)
         for (i=0;i<((found+digit+1)-curWidth);i++) result+='0';
-    else if (curWidth-found>digit+1) result=result.substr(0,found+digit+1);
+    else if (curWidth>found+digit+1)
+    {
+        int extra_prod=1;
+        for (i=0;i+found+1<curWidth;i++) extra_prod*=10;
+        int first=atoi((result.substr(0,found)).c_str())*extra_prod;
+        int second=atoi((lstrip(result.substr(found+1),"0")).c_str());
+        if (first<0) second=-second;
+        stringstream buf;
+        buf<<fixed<<setprecision(digit)<<(first+second+.5)/extra_prod;
+        result=buf.str();
+        buf.str(string());
+    }
     if (width)
     {
         curWidth=result.size();
@@ -3179,8 +3192,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             }
             else if (citation_author_vec[i].size()+2+line.size()>=80)
             {
-                if (i+1<citation_author_vec.size()) line+=",";
-                buf<<left<<setw(80)<<line<<endl;
+                buf<<left<<setw(80)<<line+","<<endl;
                 header+=buf.str();
                 buf.str(string());
                 line="";
@@ -3232,6 +3244,16 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         }
         for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
     }
+    if (_citation_title=="?")                   _citation_title="";
+    if (_citation_pdbx_database_id_PubMed=="?") _citation_pdbx_database_id_PubMed="";
+    if (_citation_pdbx_database_id_DOI=="?")    _citation_pdbx_database_id_DOI="";
+    if (_citation_journal_abbrev=="?")          _citation_journal_abbrev="";
+    if (_citation_journal_volume=="?")          _citation_journal_volume="";
+    if (_citation_page_first=="?")              _citation_page_first="";
+    if (_citation_year=="?")                    _citation_year="";
+    if (_citation_journal_id_ASTM=="?")         _citation_journal_id_ASTM="";
+    if (_citation_country=="?")                 _citation_country="";
+    if (_citation_journal_id_ISSN=="?")         _citation_journal_id_ISSN="";
     if (_citation_journal_abbrev.size())
     {
         Split(_citation_journal_abbrev,line_vec,' ');
@@ -3269,9 +3291,11 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                     _citation_journal_volume=' '+_citation_journal_volume;
                 _citation_journal_volume="V."+_citation_journal_volume;
             }
+            if (_citation_page_first.size()>5) _citation_page_first=
+                _citation_page_first.substr(_citation_page_first.size()-5);
             buf<<left<<setw(49)<<line
                 <<setw(6)<<left<<_citation_journal_volume.substr(0,6)
-                <<' '<<setw(5)<<right<<_citation_page_first.substr(0,5)
+                <<' '<<setw(5)<<right<<_citation_page_first
                 <<' '<<left<<setw(18)<<_citation_year<<endl;
             header+=buf.str();
             buf.str(string());
