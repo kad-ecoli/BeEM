@@ -168,6 +168,20 @@ inline string formatString(const string &inputString,const int width=8,
         result=buf.str();
         buf.str(string());
     }
+    // -0.000
+    if (StartsWith(result,"-0."))
+    {
+        bool allzero=true;
+        for (i=found+1;i<result.size();i++)
+        {
+            if (result[i]!='0')
+            {
+                allzero=false;
+                break;
+            }
+        }
+        if (allzero) result=result.substr(1);
+    }
     if (width)
     {
         curWidth=result.size();
