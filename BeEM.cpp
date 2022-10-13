@@ -2553,6 +2553,7 @@ int BeEM(const string &infile, string &pdbid)
     string B_iso_or_equiv="  0.00";   // Bfactor
     string pdbx_formal_charge="  ";
     string pdbx_PDB_model_num="   1"; // model index
+    vector <string> model_num_vec(1,pdbx_PDB_model_num);
     string U11="  10000";
     string U12="      0";
     string U13="      0";
@@ -3122,8 +3123,12 @@ int BeEM(const string &infile, string &pdbid)
                 pdbx_PDB_model_num="  "+pdbx_PDB_model_num;
             else if (pdbx_PDB_model_num.size()==3) 
                 pdbx_PDB_model_num=" "+pdbx_PDB_model_num;
+            if (pdbx_PDB_model_num!="   1" && find(model_num_vec.begin(),
+                model_num_vec.end(), pdbx_PDB_model_num)==model_num_vec.end())
+                model_num_vec.push_back(pdbx_PDB_model_num);
 
-            if (pdbx_PDB_model_num=="   1" && _atom_site.count("Cartn_z"))
+            //if (pdbx_PDB_model_num=="   1" && _atom_site.count("Cartn_z"))
+            if (_atom_site.count("Cartn_z"))
             {
 /*
 COLUMNS        DATA  TYPE    FIELD        DEFINITION
@@ -3396,7 +3401,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     if (_citation_pdbx_database_id_DOI.size())
     {
         buf<<left<<setw(80)<<"JRNL        DOI    "+
-            _citation_pdbx_database_id_DOI<<endl;
+            Trim(_citation_pdbx_database_id_DOI,"'\"")<<endl;
         header+=buf.str();
         buf.str(string());
     }
@@ -3488,7 +3493,6 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             filename=buf.str();
             buf.str(string());
             filename_vec.push_back(filename);
-            filename_app_map[filename]=0;
             fout<<'\n'<<Basename(filename)<<":\n";
         }
         fout<<"           "<<chainID_map[asym_id]<<setw(26)<<right<<asym_id<<'\n';
@@ -3502,31 +3506,21 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     bundleNum=0;
     string key;
     char chainID=' ';
-    map<string,int> chainID_ter_map; // -1 for no atom, 0 for with ATOM, 1 for terminated
     map<string,string> chain_atm_map;
     map<string,string> chain_lig_map;
     map<string,string> chain_hoh_map;
     string atm_txt;
     string lig_txt;
     string hoh_txt;
-    for (i=0;i<chainID_vec.size();i++) 
-    {
-        asym_id=chainID_vec[i];
-        chainID_ter_map[asym_id]=-1;
-    }
     for (l=0;l<=atomLine_vec.size();l++)
     {
-        if (l && (l==atomLine_vec.size() || asym_id!=atomLine_vec[l].second))
+        if (l && (l==atomLine_vec.size() || asym_id!=atomLine_vec[l].second ||
+            pdbx_PDB_model_num!=atomLine_vec[l].first.substr(7,4)))
         {
-            if (atm_txt.size() && chainID_ter_map[asym_id]==0)
-            {
-                buf<<"TER              "<<line.substr(17,3)<<' '<<chainID
-                    <<setw(58)<<left<<line.substr(22,5)<<'\n';
-                atm_txt+=buf.str();
-                buf.str(string());
-                chainID_ter_map[asym_id]=1;
-            }
-            chain_atm_map[asym_id]=atm_txt;
+            buf<<"TER   "<<line.substr(6,5)<<"      "<<line.substr(17,3)<<' '<<chainID
+                <<setw(58)<<left<<line.substr(22,5)<<'\n';
+            chain_atm_map[asym_id]+=atm_txt+buf.str();
+            buf.str(string());
             atm_txt.clear();
         }
         if (l==atomLine_vec.size()) continue;
@@ -3542,8 +3536,6 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             if (anisou_map.count(key)) atm_txt+="ANISOU"+line.substr(6,15)+
                 chainID+line.substr(22,6)+anisou_map[key]+line.substr(70)+'\n';
         }
-        if (chainID_ter_map[asym_id]<0 && StartsWith(line,"ATOM  ")) 
-            chainID_ter_map[asym_id]=0;
     }
     vector<pair<string,string> >().swap(atomLine_vec);
     for (l=0;l<=ligLine_vec.size();l++)
@@ -3556,7 +3548,6 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         if (l==ligLine_vec.size()) continue;
         line=ligLine_vec[l].first;
         asym_id=ligLine_vec[l].second;
-        pdbx_PDB_model_num=line.substr(7,4);
 
         chainID=chainID_map[asym_id];
         lig_txt+=line.substr(0,21)+chainID+line.substr(22)+'\n';
@@ -3578,7 +3569,6 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         if (l==hohLine_vec.size()) continue;
         line=hohLine_vec[l].first;
         asym_id=hohLine_vec[l].second;
-        pdbx_PDB_model_num=line.substr(7,4);
 
         chainID=chainID_map[asym_id];
         hoh_txt+=line.substr(0,21)+chainID+line.substr(22)+'\n';
@@ -3594,79 +3584,91 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     
     int terNum=0;
     int hydrNum=0;
+    int m=0;
     for (i=0;i<filename_vec.size()-1;i++)
     {
         filename=filename_vec[i];
         cout<<filename<<endl;
         fout.open(filename.c_str());
         fout<<header;
-        terNum=0;
-        hydrNum=0;
-        for (j=0;j<chainID_vec.size();j++)
+        for (m=0;m<model_num_vec.size();m++)
         {
-            asym_id=chainID_vec[j];
-            if (bundleID_map[asym_id]!=i+1) continue;
-            terNum+=(chainID_ter_map[asym_id]==1);
-            hydrNum+=chainHydrNum_map[asym_id];
+            pdbx_PDB_model_num=model_num_vec[m];
+            if (model_num_vec.size()>1)
+                fout<<left<<setw(80)<<"MODEL     "+pdbx_PDB_model_num<<'\n';
+            terNum=0;
+            hydrNum=0;
+            filename_app_map[filename]=0;
+            for (j=0;j<chainID_vec.size();j++)
+            {
+                asym_id=chainID_vec[j];
+                if (bundleID_map[asym_id]!=i+1) continue;
+                terNum++;
+                hydrNum+=chainHydrNum_map[asym_id];
 
-            if (chain_atm_map[asym_id].size()==0) continue;
-            Split(chain_atm_map[asym_id],lines,'\n',true);
-            for (l=0;l<lines.size();l++)
-            {
-                line=lines[l];
-                if (StartsWith(line,"ANISOU")) fout<<"ANISOU"
-                    <<setw(5)<<right<<atomNum<<line.substr(11)<<'\n';
-                else
+                if (chain_atm_map[asym_id].size()==0) continue;
+                Split(chain_atm_map[asym_id],lines,'\n',true);
+                for (l=0;l<lines.size();l++)
                 {
-                    atomNum=(++filename_app_map[filename]);
-                    fout<<line.substr(0,6)<<setw(5)<<right<<atomNum
-                        <<line.substr(11)<<'\n';
+                    line=lines[l];
+                    if (pdbx_PDB_model_num!=line.substr(7,4)) continue;
+                    if (StartsWith(line,"ANISOU")) fout<<"ANISOU"
+                        <<setw(5)<<right<<atomNum<<line.substr(11)<<'\n';
+                    else
+                    {
+                        atomNum=(++filename_app_map[filename]);
+                        fout<<line.substr(0,6)<<setw(5)<<right<<atomNum
+                            <<line.substr(11)<<'\n';
+                    }
+                    lines[l].clear();
                 }
-                lines[l].clear();
+                lines.clear();
             }
-            lines.clear();
-        }
-        for (j=0;j<chainID_vec.size();j++)
-        {
-            asym_id=chainID_vec[j];
-            if (bundleID_map[asym_id]!=i+1||
-                chain_lig_map[asym_id].size()==0) continue;
-            Split(chain_lig_map[asym_id],lines,'\n',true);
-            for (l=0;l<lines.size();l++)
+            for (j=0;j<chainID_vec.size();j++)
             {
-                line=lines[l];
-                if (StartsWith(line,"ANISOU")) fout<<"ANISOU"
-                    <<setw(5)<<right<<atomNum<<line.substr(11)<<'\n';
-                else
+                asym_id=chainID_vec[j];
+                if (bundleID_map[asym_id]!=i+1||
+                    chain_lig_map[asym_id].size()==0) continue;
+                Split(chain_lig_map[asym_id],lines,'\n',true);
+                for (l=0;l<lines.size();l++)
                 {
-                    atomNum=(++filename_app_map[filename]);
-                    fout<<line.substr(0,6)<<setw(5)<<right<<atomNum
-                        <<line.substr(11)<<'\n';
+                    line=lines[l];
+                    if (pdbx_PDB_model_num!=line.substr(7,4)) continue;
+                    if (StartsWith(line,"ANISOU")) fout<<"ANISOU"
+                        <<setw(5)<<right<<atomNum<<line.substr(11)<<'\n';
+                    else
+                    {
+                        atomNum=(++filename_app_map[filename]);
+                        fout<<line.substr(0,6)<<setw(5)<<right<<atomNum
+                            <<line.substr(11)<<'\n';
+                    }
+                    lines[l].clear();
                 }
-                lines[l].clear();
+                lines.clear();
             }
-            lines.clear();
-        }
-        for (j=0;j<chainID_vec.size();j++)
-        {
-            asym_id=chainID_vec[j];
-            if (bundleID_map[asym_id]!=i+1 ||
-                chain_hoh_map[asym_id].size()==0) continue;
-            Split(chain_hoh_map[asym_id],lines,'\n',true);
-            for (l=0;l<lines.size();l++)
+            for (j=0;j<chainID_vec.size();j++)
             {
-                line=lines[l];
-                if (StartsWith(line,"ANISOU")) fout<<"ANISOU"
-                    <<setw(5)<<right<<atomNum<<line.substr(11)<<'\n';
-                else
+                asym_id=chainID_vec[j];
+                if (bundleID_map[asym_id]!=i+1 ||
+                    chain_hoh_map[asym_id].size()==0) continue;
+                Split(chain_hoh_map[asym_id],lines,'\n',true);
+                for (l=0;l<lines.size();l++)
                 {
-                    atomNum=(++filename_app_map[filename]);
-                    fout<<line.substr(0,6)<<setw(5)<<right<<atomNum
-                        <<line.substr(11)<<'\n';
+                    line=lines[l];
+                    if (pdbx_PDB_model_num!=line.substr(7,4)) continue;
+                    if (StartsWith(line,"ANISOU")) fout<<"ANISOU"
+                        <<setw(5)<<right<<atomNum<<line.substr(11)<<'\n';
+                    else
+                    {
+                        atomNum=(++filename_app_map[filename]);
+                        fout<<line.substr(0,6)<<setw(5)<<right<<atomNum
+                            <<line.substr(11)<<'\n';
+                    }
+                    lines[l].clear();
                 }
-                lines[l].clear();
+                lines.clear();
             }
-            lines.clear();
+            if (model_num_vec.size()>1) fout<<left<<setw(80)<<"ENDMDL"<<'\n';
         }
     /*
 COLUMNS         DATA TYPE     FIELD          DEFINITION
@@ -3716,7 +3718,6 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     map<string,int> ().swap(bundleID_map);
     vector<string>  ().swap(filename_vec);
     map<string,int> ().swap(filename_app_map);
-    map<string,int> ().swap(chainID_ter_map);
     map<string,string>().swap(chain_atm_map);
     map<string,string>().swap(chain_lig_map);
     map<string,string>().swap(chain_hoh_map);
@@ -3764,6 +3765,7 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     B_iso_or_equiv.clear();
     pdbx_formal_charge.clear();
     pdbx_PDB_model_num.clear();
+    vector <string>().swap(model_num_vec);
     U11.clear();
     U12.clear();
     U13.clear();
