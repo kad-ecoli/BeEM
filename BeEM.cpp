@@ -79,6 +79,25 @@ void Split(const string &line, vector<string> &line_vec,
     }
 }
 
+string Basename(const string &inputString)
+{
+    string result="";
+    int i;
+    vector<string> line_vec;
+    Split(inputString,line_vec,'/');
+    if (line_vec.size())
+    {
+        result=line_vec.back();
+        for (i=0;i<line_vec.size();i++) line_vec[i].clear();
+        line_vec.clear();
+        Split(result,line_vec,'\\');
+        result=line_vec.back();
+        for (i=0;i<line_vec.size();i++) line_vec[i].clear();
+        line_vec.clear();
+    }
+    return result;
+}
+
 string Trim(const string &inputString,const string &char_list=" \n\r\t")
 {
     string result = inputString;
@@ -3344,7 +3363,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             buf.str(string());
             filename_vec.push_back(filename);
             filename_app_map[filename]=0;
-            fout<<'\n'<<filename<<":\n";
+            fout<<'\n'<<Basename(filename)<<":\n";
         }
         fout<<"           "<<chainID_map[asym_id]<<setw(26)<<right<<asym_id<<'\n';
     }
