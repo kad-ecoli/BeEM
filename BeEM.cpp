@@ -3414,7 +3414,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     }
 
     bool remap_chainID=false;
-    for (j=1;j<=bundleNum;j++)
+    //for (j=1;j<=bundleNum;j++)
     {
         remap_chainID=false;
         for (i=0;i<chainID_vec.size();i++)
@@ -3427,12 +3427,14 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                 break;
             }
         }
-        if (remap_chainID) continue;
-        for (i=0;i<chainID_vec.size();i++)
+        if (remap_chainID==false)
         {
-            asym_id=chainID_vec[i];
-            if (bundleID_map[asym_id]!=bundleNum) continue;
-            chainID_map[asym_id]=asym_id[0];
+            for (i=0;i<chainID_vec.size();i++)
+            {
+                asym_id=chainID_vec[i];
+                if (bundleID_map[asym_id]!=bundleNum) continue;
+                chainID_map[asym_id]=asym_id[0];
+            }
         }
     }
     
