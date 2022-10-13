@@ -3094,6 +3094,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
         lines[i].clear();
     }
+    lines.clear();
 
 
     string header;
@@ -3356,60 +3357,143 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     bundleNum=0;
     string key;
     char chainID=' ';
-    filename.clear();
-    map<string,int> chainID_ter_map;
-    for (l=0;l<atomLine_vec.size();l++)
+    map<string,int> chainID_ter_map; // -1 for no atom, 0 for with ATOM, 1 for terminated
+    map<string,string> chain_atm_map;
+    map<string,string> chain_lig_map;
+    map<string,string> chain_hoh_map;
+    string atm_txt;
+    string lig_txt;
+    string hoh_txt;
+    for (i=0;i<chainID_vec.size();i++) 
     {
-        if (l && chainID_ter_map.count(asym_id)==0 && 
-            (l+1==atomLine_vec.size() || asym_id!=atomLine_vec[l].second))
+        asym_id=chainID_vec[i];
+        chainID_ter_map[asym_id]=-1;
+        chain_atm_map[asym_id]="";
+        chain_lig_map[asym_id]="";
+        chain_hoh_map[asym_id]="";
+    }
+    for (l=0;l<=atomLine_vec.size();l++)
+    {
+        if (l && (l==atomLine_vec.size() || asym_id!=atomLine_vec[l].second))
         {
-            atomNum=(++filename_app_map[filename]);
-            fout<<"TER   "<<setw(5)<<right<<atomNum<<"      "
-                <<line.substr(17,3)<<' '<<chainID<<setw(58)
-                <<left<<line.substr(22,5)<<'\n';
-            chainID_ter_map[asym_id]=1;
+            if (atm_txt.size() && chainID_ter_map[asym_id]==-1)
+            {
+                lig_txt=atm_txt+lig_txt;
+                atm_txt.clear();
+            }
+            if (atm_txt.size())
+            {
+                buf<<"TER              "<<line.substr(17,3)<<' '<<chainID
+                    <<setw(58)<<left<<line.substr(22,5)<<'\n';
+                chain_atm_map[asym_id]=atm_txt+buf.str();
+                buf.str(string());
+                chainID_ter_map[asym_id]=1;
+                atm_txt.clear();
+            }
+            if (lig_txt.size())
+            {
+                chain_lig_map[asym_id]+=lig_txt;
+                lig_txt.clear();
+            }
+            if (hoh_txt.size())
+            {
+                chain_hoh_map[asym_id]+=hoh_txt;
+                hoh_txt.clear();
+            }
         }
+        if (l==atomLine_vec.size()) continue;
         line=atomLine_vec[l].first;
         asym_id=atomLine_vec[l].second;
         pdbx_PDB_model_num=line.substr(7,4);
 
-        if (bundleID_map[asym_id]!=bundleNum)
-        {
-            bundleNum=bundleID_map[asym_id];
-            if (filename.size()) fout.close();
-            buf<<pdbid<<"-pdb-bundle"<<bundleNum<<".pdb"<<flush;
-            filename=buf.str();
-            buf.str(string());
-            if (filename_app_map[filename])
-                fout.open(filename.c_str(),ofstream::app);
-            else
-            {
-                fout.open(filename.c_str());
-                fout<<header;
-                cout<<filename<<endl;
-            }
-        }
-        atomNum=(++filename_app_map[filename]);
         chainID=chainID_map[asym_id];
-        fout<<line.substr(0,6)<<setw(5)<<right<<atomNum
-            <<line.substr(11,10)<<chainID
-            <<line.substr(22)<<'\n';
-        if (anisou_map.size())
+        if (anisou_map.size()) key=line.substr(12,15)+'\t'+asym_id;
+        line=line.substr(0,21)+chainID+line.substr(22)+'\n';
+        if (anisou_map.size() && anisou_map.count(key)) 
+            line+="ANISOU"+line.substr(6,22)+anisou_map[key]+line.substr(70);
+        if (line.substr(17,3)=="HOH") hoh_txt+=line;
+        else if (chainID_ter_map[asym_id]<=0)
         {
-            key=line.substr(12,15)+'\t'+asym_id;
-            if (anisou_map.count(key)) fout<<"ANISOU"<<setw(5)<<right
-                <<atomNum<<line.substr(11,10)<<chainID<<line.substr(22,6)
-                <<anisou_map[key]<<line.substr(70)<<'\n';
+            if (StartsWith(line,"ATOM  ")) chainID_ter_map[asym_id]=0;
+            atm_txt+=line;
         }
+        else lig_txt+=line;
     }
     key.clear();
-    if (filename.size()) fout.close();
     
+    int terNum=0;
     for (i=0;i<filename_vec.size()-1;i++)
     {
-        chainIdx=0;
+        filename=filename_vec[i];
+        cout<<filename<<endl;
+        fout.open(filename.c_str());
+        fout<<header;
+        terNum=0;
         for (j=0;j<chainID_vec.size();j++)
-            chainIdx+=(bundleID_map[chainID_vec[j]]==i+1);
+        {
+            asym_id=chainID_vec[j];
+            if (bundleID_map[asym_id]!=i+1) continue;
+            terNum+=(chainID_ter_map[asym_id]==1);
+
+            if (chain_atm_map[asym_id].size()==0) continue;
+            Split(chain_atm_map[asym_id],lines,'\n',true);
+            for (l=0;l<lines.size();l++)
+            {
+                line=lines[l];
+                if (StartsWith(line,"ANISOU")) fout<<"ANISOU"
+                    <<setw(5)<<right<<atomNum<<line.substr(11)<<'\n';
+                else
+                {
+                    atomNum=(++filename_app_map[filename]);
+                    fout<<line.substr(0,6)<<setw(5)<<right<<atomNum
+                        <<line.substr(11)<<'\n';
+                }
+                lines[l].clear();
+            }
+            lines.clear();
+        }
+        for (j=0;j<chainID_vec.size();j++)
+        {
+            asym_id=chainID_vec[j];
+            if (bundleID_map[asym_id]!=i+1||
+                chain_lig_map[asym_id].size()==0) continue;
+            Split(chain_lig_map[asym_id],lines,'\n',true);
+            for (l=0;l<lines.size();l++)
+            {
+                line=lines[l];
+                if (StartsWith(line,"ANISOU")) fout<<"ANISOU"
+                    <<setw(5)<<right<<atomNum<<line.substr(11)<<'\n';
+                else
+                {
+                    atomNum=(++filename_app_map[filename]);
+                    fout<<line.substr(0,6)<<setw(5)<<right<<atomNum
+                        <<line.substr(11)<<'\n';
+                }
+                lines[l].clear();
+            }
+            lines.clear();
+        }
+        for (j=0;j<chainID_vec.size();j++)
+        {
+            asym_id=chainID_vec[j];
+            if (bundleID_map[asym_id]!=i+1 ||
+                chain_hoh_map[asym_id].size()==0) continue;
+            Split(chain_hoh_map[asym_id],lines,'\n',true);
+            for (l=0;l<lines.size();l++)
+            {
+                line=lines[l];
+                if (StartsWith(line,"ANISOU")) fout<<"ANISOU"
+                    <<setw(5)<<right<<atomNum<<line.substr(11)<<'\n';
+                else
+                {
+                    atomNum=(++filename_app_map[filename]);
+                    fout<<line.substr(0,6)<<setw(5)<<right<<atomNum
+                        <<line.substr(11)<<'\n';
+                }
+                lines[l].clear();
+            }
+            lines.clear();
+        }
     /*
 COLUMNS         DATA TYPE     FIELD          DEFINITION
 ----------------------------------------------------------------------------------
@@ -3430,11 +3514,9 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
 66 - 70         Integer       numSeq         Number of SEQRES records
     */
 
-        filename=filename_vec[i];
-        fout.open(filename.c_str(),ofstream::app);
         fout<<"MASTER        0    0    0    0    0    0    0    3"
-            <<setw(5)<<right<<filename_app_map[filename]-chainIdx
-            <<setw(5)<<right<<chainIdx<<"    0    0          \n"
+            <<setw(5)<<right<<filename_app_map[filename]-terNum
+            <<setw(5)<<right<<terNum<<"    0    0          \n"
             <<setw(80)<<left<<"END"<<endl;
         fout.close();
     }
@@ -3456,12 +3538,19 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     vector<string>  ().swap(filename_vec);
     map<string,int> ().swap(filename_app_map);
     map<string,int> ().swap(chainID_ter_map);
-    chainID_list.clear();
-    filename.clear();
+    map<string,string>().swap(chain_atm_map);
+    map<string,string>().swap(chain_lig_map);
+    map<string,string>().swap(chain_hoh_map);
+    string ().swap(chainID_list);
+    string ().swap(filename);
+    string ().swap(atm_txt);
+    string ().swap(lig_txt);
+    string ().swap(hoh_txt);
 
     vector<string>().swap(filename_vec);
     map<string,int>().swap(filename_app_map);
 
+    vector<pair<string,string> >().swap(atomLine_vec);
     vector<string>().swap(author_vec);
     vector<string>().swap(citation_author_vec);
     vector<string>().swap(cryst1_vec);
