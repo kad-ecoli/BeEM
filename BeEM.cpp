@@ -2513,6 +2513,7 @@ int BeEM(const string &infile, string &pdbid)
      * HEADER, AUTHOR, JRNL, CRYST1, SCALEn */
     string pdbx_keywords="";
     string recvd_initial_deposition_date="";
+    string revision_date="";
     bool loop_=false;
 
     map<string,int> _audit_author;
@@ -2524,6 +2525,7 @@ int BeEM(const string &infile, string &pdbid)
     map<string,int> _symmetry;
     map<string,int> _struct_keywords;
     map<string,int> _pdbx_database_status;
+    map<string,int> _pdbx_audit_revision_history;
     string _citation_title="";
     string _citation_pdbx_database_id_PubMed="";
     string _citation_pdbx_database_id_DOI="";
@@ -2595,6 +2597,7 @@ int BeEM(const string &infile, string &pdbid)
             _symmetry.clear();
             _struct_keywords.clear();
             _pdbx_database_status.clear();
+            _pdbx_audit_revision_history.clear();
             loop_=false;
         }
         else if (line_vec.size()==1 && line_vec[0]=="loop_")
@@ -2649,6 +2652,33 @@ int BeEM(const string &infile, string &pdbid)
         {
             recvd_initial_deposition_date=line_vec[
                 _pdbx_database_status["recvd_initial_deposition_date"]];
+        }
+        else if (StartsWith(line,"_pdbx_audit_revision_history."))
+        {
+            if (loop_)
+            {
+                j=_pdbx_audit_revision_history.size();
+                line=line_vec[0];
+                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                Split(line,line_vec,'.');
+                if (line_vec.size()>1)
+                {
+                    line=line_vec[1];
+                    _pdbx_audit_revision_history[line]=j;
+                }
+
+            }
+            else if (line_vec.size()>1)
+            {
+                if (line_vec[0]=="_pdbx_audit_revision_history.revision_date")
+                    revision_date=line_vec[1];
+            }
+        }
+        else if (_pdbx_audit_revision_history.size() && 
+            revision_date.size()==0 &&
+            _pdbx_audit_revision_history.count("revision_date"))
+        {
+            revision_date=line_vec[_pdbx_audit_revision_history["revision_date"]];
         }
         else if (StartsWith(line,"_citation."))
         {
@@ -3174,6 +3204,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
 
 
     string header;
+    //if (revision_date.size()) recvd_initial_deposition_date=revision_date;
     if (pdbx_keywords.size() || recvd_initial_deposition_date.size())
     {
         buf<<"HEADER    "<<left<<setw(40)<<pdbx_keywords.substr(0,40)
@@ -3666,6 +3697,10 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     cout<<filename_vec.back()<<endl;
 
     /* clean up */
+    string ().swap(pdbx_keywords);
+    string ().swap(recvd_initial_deposition_date);
+    string ().swap(revision_date);
+
     map<string,int> ().swap(_audit_author);
     map<string,int> ().swap(_citation_author);
     map<string,int> ().swap(_citation);
@@ -3674,6 +3709,7 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     map<string,int> ().swap(_atom_site);
     map<string,int> ().swap(_symmetry);
     map<string,int> ().swap(_pdbx_database_status);
+    map<string,int> ().swap(_pdbx_audit_revision_history);
     map<string,int> ().swap(_struct_keywords);
     
     map<string,char>().swap(chainID_map);
