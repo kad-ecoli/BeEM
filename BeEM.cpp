@@ -3371,6 +3371,8 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     }
     int cryst1Count=0;
     for (i=0;i<6;i++) cryst1Count+=cryst1_vec[i].size()>0;
+    for (i=6;i<8;i++)
+        if (cryst1_vec[i]=="?" || cryst1_vec[i]==".") cryst1_vec[i]="";
     if (cryst1Count==6)
     {
         buf<<"CRYST1"<<cryst1_vec[0]<<cryst1_vec[1]<<cryst1_vec[2]
