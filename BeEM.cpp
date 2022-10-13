@@ -3412,6 +3412,29 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         bundleID_map[asym_id]=bundleNum;
         chainIdx++;
     }
+
+    bool remap_chainID=false;
+    for (j=1;j<=bundleNum;j++)
+    {
+        remap_chainID=false;
+        for (i=0;i<chainID_vec.size();i++)
+        {
+            asym_id=chainID_vec[i];
+            if (bundleID_map[asym_id]!=bundleNum) continue;
+            if (asym_id.size()>1)
+            {
+                remap_chainID=true;
+                break;
+            }
+        }
+        if (remap_chainID) continue;
+        for (i=0;i<chainID_vec.size();i++)
+        {
+            asym_id=chainID_vec[i];
+            if (bundleID_map[asym_id]!=bundleNum) continue;
+            chainID_map[asym_id]=asym_id[0];
+        }
+    }
     
     bundleNum=0;
     ofstream fout;
