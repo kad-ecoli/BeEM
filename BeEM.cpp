@@ -194,7 +194,11 @@ inline string formatString(const string &inputString,const int width=8,
     if (width)
     {
         curWidth=result.size();
-        if (curWidth>width) result=result.substr(0,width);
+        if (curWidth>width)
+        {
+            //result=result.substr(0,width);
+            result=result.substr(result.size()-width);
+        }
         else if (curWidth<width)
             for (i=0;i<width-curWidth;i++) result=' '+result;
     }
@@ -2455,6 +2459,46 @@ namespace redi
 
 inline string formatANISOU(const string &inputString)
 {
+    string result=Trim(inputString," ");
+    size_t found=result.find_first_of('.');
+    stringstream buf;
+    if (found==string::npos)
+    {
+        result+=".0000";
+        found=result.find_first_of('.');
+    }
+    string post_decimal=result.substr(found+1);
+    int i;
+    int second=atoi(post_decimal.c_str());
+    if (result[0]=='-') second=-second;
+    if (post_decimal.size()>4)
+    {
+        double anisou_dbl=atof(result.c_str())*10000;
+        int    anisou_int=round(anisou_dbl);
+        if (rstrip(post_decimal.substr(4),"0")=="5" &&
+            (post_decimal[3]-'0') % 2 ==0)  anisou_int=int(anisou_dbl);
+        buf<<right<<setw(7)<<anisou_int<<flush;
+        result=buf.str();
+        buf.str(string());
+        post_decimal.clear();
+        return result;
+    }
+    else if (post_decimal.size()<4)
+        for (i=0;i<4-post_decimal.size();i++) second*=10;
+    
+    string pre_decimal=result.substr(0,found);
+    int first=atoi(pre_decimal.c_str());
+    buf<<right<<setw(7)<<first*10000+second<<flush;
+    result=buf.str();
+    buf.str(string());
+    if (result.size()>7) result=result.substr(7-result.size());
+    pre_decimal.clear();
+    post_decimal.clear();
+    return result;
+}
+
+inline string formatANISOU2(const string &inputString)
+{
     string minus="";
     string result=inputString;
     if (StartsWith(inputString,"-"))
@@ -2468,8 +2512,20 @@ inline string formatANISOU(const string &inputString)
     if (found!=string::npos)
     {
         pre_decimal=result.substr(0,found);
-        post_decimal=result.substr(found+1,4);
-        while (post_decimal.size()<4) post_decimal+='0';
+        post_decimal=result.substr(found+1);
+        if (post_decimal.size()>4)
+        {
+            int decimalInt=atoi(post_decimal.c_str());
+            int extra_prod=1;
+            int i;
+            for (i=0;i<post_decimal.size()-4;i++) extra_prod*=10;
+            stringstream buf;
+            buf<<((int)((decimalInt+.5)/extra_prod));
+            post_decimal=buf.str();
+            buf.str(string());
+            while (post_decimal.size()<4) post_decimal='0'+post_decimal;
+        }
+        else while (post_decimal.size()<4) post_decimal+='0';
     }
     else pre_decimal=result;
     result=lstrip(pre_decimal+post_decimal,"0");
@@ -3058,11 +3114,23 @@ int BeEM(const string &infile, string &pdbid,
                 scale_mat[2][3]=formatString(line_vec[fract_transf_[
                     "fract_transf_vector[3]"]],10,5);
         }
-        else if (StartsWith(line,"_audit_author"))
+        else if (StartsWith(line,"_audit_author."))
         {
-            line=line_vec[0];
-            j=_audit_author.size();
-            _audit_author[line]=j;
+            if (loop_)
+            {
+                line=line_vec[0];
+                j=_audit_author.size();
+                _audit_author[line]=j;
+            }
+            else if (StartsWith(line,"_audit_author.name") && line_vec.size()>1)
+            {
+                line=line_vec[1];
+                line=Trim(line,"'\"");
+                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                Split(line,line_vec,',');
+                if (line_vec.size()>=2) line=lstrip(line_vec[1])+line_vec[0];
+                author_vec.push_back(Upper(line));
+            }
         }
         else if (_audit_author.size() && 
                  _audit_author.count("_audit_author.name"))
@@ -3074,16 +3142,26 @@ int BeEM(const string &infile, string &pdbid,
             if (line_vec.size()>=2) line=lstrip(line_vec[1])+line_vec[0];
             author_vec.push_back(Upper(line));
         }
-        else if (StartsWith(line,"_citation_author"))
+        else if (StartsWith(line,"_citation_author."))
         {
-            line=line_vec[0];
-            for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
-            Split(line,line_vec,'.');
-            if (line_vec.size()>1)
+            if (loop_)
             {
+                line=line_vec[0];
+                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                Split(line,line_vec,'.');
                 line=line_vec[1];
                 j=_citation_author.size();
                 _citation_author[line]=j;
+            }
+            else if (StartsWith(line,"_citation_author.name") && line_vec.size()>1)
+            {
+                line=line_vec[1];
+                line=Trim(line,"'\"");
+                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                Split(line,line_vec,',');
+                if (line_vec.size()>=2)
+                    line=lstrip(line_vec[1])+line_vec[0];
+                citation_author_vec.push_back(line);
             }
         }
         else if (_citation_author.size() && _citation_author.count("name") 
@@ -3250,7 +3328,8 @@ int BeEM(const string &infile, string &pdbid,
                 pdbx_formal_charge="  ";
             else if (pdbx_formal_charge.size()==1)
             {
-                if (pdbx_formal_charge=="1") pdbx_formal_charge="1+";
+                if ('1'<=pdbx_formal_charge[0] && pdbx_formal_charge[0]<='9')
+                     pdbx_formal_charge+='+';
                 else pdbx_formal_charge+=' ';
             }
             else if (pdbx_formal_charge.size()>2)
