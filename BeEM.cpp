@@ -3198,8 +3198,7 @@ int BeEM(const string &infile, string &pdbid,
                 seq_id=line_vec[_atom_site["pdbx_auth_seq_id"]];
             else if (_atom_site.count("pdbx_label_seq_id"))
                 seq_id=line_vec[_atom_site["pdbx_label_seq_id"]];
-            if (seq_id.size()>4) seq_id=seq_id.substr(seq_id.size()-4,4);
-            else if (seq_id.size()==3) seq_id=" "+seq_id;
+            if (seq_id.size()==3) seq_id=" "+seq_id;
             else if (seq_id.size()==2) seq_id="  "+seq_id;
             else if (seq_id.size()==1) seq_id="   "+seq_id;
 
@@ -3208,6 +3207,8 @@ int BeEM(const string &infile, string &pdbid,
             if (pdbx_PDB_ins_code=="." || pdbx_PDB_ins_code=="?")
                 pdbx_PDB_ins_code=" ";
             else pdbx_PDB_ins_code=pdbx_PDB_ins_code[0];
+            seq_id+=pdbx_PDB_ins_code;
+            if (seq_id.size()>5) seq_id=seq_id.substr(0,5);
 
             if (_atom_site.count("Cartn_z"))
             {
@@ -3294,7 +3295,7 @@ COLUMNS        DATA  TYPE    FIELD        DEFINITION
 79 - 80        LString(2)    charge       Charge  on the atom.
 */
                 line=group_PDB+' '+pdbx_PDB_model_num+' '+atom_id+alt_id
-                    +comp_id+"  "+seq_id+pdbx_PDB_ins_code+"   "
+                    +comp_id+"  "+seq_id+"   "
                     +Cartn_x+Cartn_y+Cartn_z+occupancy+B_iso_or_equiv
                     +"          "+type_symbol+pdbx_formal_charge;
                 if (_atom_site.count("label_seq_id") && 
@@ -3341,7 +3342,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
 79 - 80       LString(2)    charge         Charge on the atom.
                  */
                 anisou_map[atom_id+alt_id+comp_id+"  "+seq_id+
-                    pdbx_PDB_ins_code+'\t'+asym_id]=U11+U22+U33+U12+U13+U23;
+                    '\t'+asym_id]=U11+U22+U33+U12+U13+U23;
             }
         }
 
@@ -3586,7 +3587,8 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     {
         asym_id=chainID_vec[i];
         chainAtomNum_map[asym_id]++; // for TER
-        if (chainAtomNum_map[asym_id]+atomNum>=99999 || chainIdx>=chainID_list.size())
+        if (atomNum && (chainAtomNum_map[asym_id]+atomNum>=99999 
+            || chainIdx>=chainID_list.size()))
         {
             atomNum=0;
             bundleNum++;
@@ -3812,11 +3814,11 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                     line=lines[l];
                     if (pdbx_PDB_model_num!=line.substr(7,4)) continue;
                     if (StartsWith(line,"ANISOU")) fout<<"ANISOU"
-                        <<setw(5)<<right<<atomNum<<line.substr(11)<<'\n';
+                        <<setw(5)<<right<<atomNum%100000<<line.substr(11)<<'\n';
                     else
                     {
                         atomNum=(++filename_app_map[filename]);
-                        fout<<line.substr(0,6)<<setw(5)<<right<<atomNum
+                        fout<<line.substr(0,6)<<setw(5)<<right<<atomNum%100000
                             <<line.substr(11)<<'\n';
                     }
                     lines[l].clear();
@@ -3834,11 +3836,11 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                     line=lines[l];
                     if (pdbx_PDB_model_num!=line.substr(7,4)) continue;
                     if (StartsWith(line,"ANISOU")) fout<<"ANISOU"
-                        <<setw(5)<<right<<atomNum<<line.substr(11)<<'\n';
+                        <<setw(5)<<right<<atomNum%100000<<line.substr(11)<<'\n';
                     else
                     {
                         atomNum=(++filename_app_map[filename]);
-                        fout<<line.substr(0,6)<<setw(5)<<right<<atomNum
+                        fout<<line.substr(0,6)<<setw(5)<<right<<atomNum%100000
                             <<line.substr(11)<<'\n';
                     }
                     lines[l].clear();
@@ -3856,11 +3858,11 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                     line=lines[l];
                     if (pdbx_PDB_model_num!=line.substr(7,4)) continue;
                     if (StartsWith(line,"ANISOU")) fout<<"ANISOU"
-                        <<setw(5)<<right<<atomNum<<line.substr(11)<<'\n';
+                        <<setw(5)<<right<<atomNum%100000<<line.substr(11)<<'\n';
                     else
                     {
                         atomNum=(++filename_app_map[filename]);
-                        fout<<line.substr(0,6)<<setw(5)<<right<<atomNum
+                        fout<<line.substr(0,6)<<setw(5)<<right<<atomNum%100000
                             <<line.substr(11)<<'\n';
                     }
                     lines[l].clear();
