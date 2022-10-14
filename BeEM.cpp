@@ -8,7 +8,8 @@ const char* docstring=""
 "    PDB files. Output results to *-pdb-bundle*\n"
 "\n"
 "option:\n"
-"    -p=xxxx          prefix of output file. default is the PDB ID read from the input\n"
+"    -p=xxxx          prefix of output file.\n"
+"                     default is the PDB ID read from the input\n"
 "    -seqres={0,1}    whether to convert SEQRES record\n"
 "                     0 - (default) do not convert SEQRES\n"
 "                     1 - convert SEQRES\n"
@@ -2485,7 +2486,8 @@ inline string formatANISOU(const string &inputString)
     return result;
 }
 
-int BeEM(const string &infile, string &pdbid)
+int BeEM(const string &infile, string &pdbid, 
+    const int read_seqres, const int read_dbref)
 {
 
     stringstream buf;
@@ -2533,6 +2535,8 @@ int BeEM(const string &infile, string &pdbid)
     map<string,int> _struct_keywords;
     map<string,int> _pdbx_database_status;
     map<string,int> _pdbx_audit_revision_history;
+    map<string,int> _entity_poly_seq;
+    map<string,int> _entity_poly;
     string _citation_title="";
     string _citation_pdbx_database_id_PubMed="";
     string _citation_pdbx_database_id_DOI="";
@@ -2543,6 +2547,9 @@ int BeEM(const string &infile, string &pdbid)
     string _citation_journal_id_ASTM="";
     string _citation_country="";
     string _citation_journal_id_ISSN="";
+
+    string entity_id="";
+    string mon_id="";
 
     string group_PDB  ="ATOM"; // (ATOM/HETATM)
     string type_symbol="C";    // (element symbol)
@@ -2575,6 +2582,9 @@ int BeEM(const string &infile, string &pdbid)
     vector<pair<string,string> > atomLine_vec;
     vector<pair<string,string> > ligLine_vec;
     vector<pair<string,string> > hohLine_vec;
+    vector<string> seqres_vec;
+    map<int,vector<string> > seqres_mat;
+    vector<string> entity2strand;
 
     size_t l;
     int i,j;
@@ -2589,17 +2599,7 @@ int BeEM(const string &infile, string &pdbid)
     for (l=0;l<lines.size();l++)
     {
         line=lines[l];
-        if (l+1<lines.size() && StartsWith(lines[l+1],";"))
-        {
-            while(l+1<lines.size() && Trim(lines[l+1])!=";")
-            {
-                l++;
-                if (!StartsWith(lines[l],";")) line+=lines[l];
-                else line+=" \""+lines[l].substr(1);
-            }
-            line+="\"";
-        }
-
+        
         if (_atom_site.size() && !StartsWith(line,"_atom_site"))
              Split(line,line_vec,' ',true);
         else Split(line,line_vec,' ');
@@ -2607,6 +2607,13 @@ int BeEM(const string &infile, string &pdbid)
         if (line_vec.size()==0) continue;
         else if (line_vec.size()==1 && line_vec[0]=="#")
         {
+            if (_entity_poly_seq.size() && entity_id.size())
+            {
+                seqres_mat[atoi(entity_id.c_str())]=seqres_vec;
+                for (i=0;i<seqres_vec.size();i++) seqres_vec[i].clear();
+                seqres_vec.clear();
+            }
+            entity_id="";
             _audit_author.clear();
             _citation_author.clear();
             _citation.clear();
@@ -2617,6 +2624,8 @@ int BeEM(const string &infile, string &pdbid)
             _struct_keywords.clear();
             _pdbx_database_status.clear();
             _pdbx_audit_revision_history.clear();
+            _entity_poly_seq.clear();
+            _entity_poly.clear();
             loop_=false;
         }
         else if (line_vec.size()==1 && line_vec[0]=="loop_")
@@ -2672,6 +2681,86 @@ int BeEM(const string &infile, string &pdbid)
             recvd_initial_deposition_date=line_vec[
                 _pdbx_database_status["recvd_initial_deposition_date"]];
         }
+        else if (read_seqres && StartsWith(line,"_entity_poly.") && loop_)
+        {
+            j=_entity_poly.size();
+            line=line_vec[0];
+            for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+            Split(line,line_vec,'.');
+            if (line_vec.size()>1)
+            {
+                line=line_vec[1];
+                _entity_poly[line]=j;
+            }
+        }
+        else if (read_seqres && _entity_poly.size() && 
+            _entity_poly.count("entity_id") && _entity_poly.count("pdbx_strand_id"))
+        {
+            while (line_vec.size()<_entity_poly.size())
+            {
+                l++;
+                if (StartsWith(lines[l],";"))
+                {
+                    line="";
+                    while (l<lines.size())
+                    {
+                        if (StartsWith(lines[l],";"))
+                        {
+                            if (Trim(lines[l])==";") break;
+                            else line+=lines[l].substr(1);
+                        }
+                        else line+=lines[l];
+                        l++;
+                    }
+                    line_vec.push_back(line);
+                }
+                else
+                {
+                    Split(lines[l],line_append_vec,' ');
+                    for (i=0;i<line_append_vec.size();i++)
+                    {
+                        line_vec.push_back(line_append_vec[i]);
+                        line_append_vec[i].clear();
+                    }
+                    line_append_vec.clear();
+                }
+            }
+            entity_id=line_vec[_entity_poly["entity_id"]];
+            i=atoi(entity_id.c_str());
+            while (entity2strand.size()<=i) entity2strand.push_back("");
+            entity2strand[i]=line_vec[_entity_poly["pdbx_strand_id"]];
+        }
+        else if (read_seqres && StartsWith(line,"_entity_poly_seq.") && loop_)
+        {
+            j=_entity_poly_seq.size();
+            line=line_vec[0];
+            for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+            Split(line,line_vec,'.');
+            if (line_vec.size()>1)
+            {
+                line=line_vec[1];
+                _entity_poly_seq[line]=j;
+            }
+        }
+        else if (read_seqres && _entity_poly_seq.size() && 
+            _entity_poly_seq.count("entity_id") && _entity_poly_seq.count("mon_id"))
+        {
+            mon_id   =line_vec[_entity_poly_seq["mon_id"]];
+            if      (mon_id.size()==1) mon_id="  "+mon_id;
+            else if (mon_id.size()==2) mon_id=" "+mon_id;
+            else if (mon_id.size()>3)  mon_id=mon_id.substr(0,3);
+            if (entity_id!=line_vec[_entity_poly_seq["entity_id"]])
+            {
+                if (entity_id.size())
+                {
+                    seqres_mat[atoi(entity_id.c_str())]=seqres_vec;
+                    for (i=0;i<seqres_vec.size();i++) seqres_vec[i].clear();
+                    seqres_vec.clear();
+                }
+                entity_id=line_vec[_entity_poly_seq["entity_id"]];
+            }
+            seqres_vec.push_back(mon_id);
+        }
         else if (StartsWith(line,"_pdbx_audit_revision_history."))
         {
             if (loop_)
@@ -2718,14 +2807,33 @@ int BeEM(const string &infile, string &pdbid)
                 while (line_vec.size()<=1)
                 {
                     l++;
-                    Split(lines[l],line_append_vec,' ');
-                    for (i=0;i<line_append_vec.size();i++)
+                    if (StartsWith(lines[l],";"))
                     {
-                        line_vec.push_back(line_append_vec[i]);
-                        line_append_vec[i].clear();
+                        line="";
+                        while (l<lines.size())
+                        {
+                            if (StartsWith(lines[l],";"))
+                            {
+                                if (Trim(lines[l])==";") break;
+                                else line+=lines[l].substr(1);
+                            }
+                            else line+=lines[l];
+                            l++;
+                        }
+                        line_vec.push_back(line);
                     }
-                    line_append_vec.clear();
+                    else
+                    {
+                        Split(lines[l],line_append_vec,' ');
+                        for (i=0;i<line_append_vec.size();i++)
+                        {
+                            line_vec.push_back(line_append_vec[i]);
+                            line_append_vec[i].clear();
+                        }
+                        line_append_vec.clear();
+                    }
                 }
+
                 if      (line_vec[0]=="_citation.title")
                     _citation_title=Trim(line_vec[1],"'\"");
                 else if (line_vec[0]=="_citation.pdbx_database_id_PubMed")
@@ -2754,13 +2862,31 @@ int BeEM(const string &infile, string &pdbid)
             while (line_vec.size()<_citation.size())
             {
                 l++;
-                Split(lines[l],line_append_vec,' ');
-                for (i=0;i<line_append_vec.size();i++)
+                if (StartsWith(lines[l],";"))
                 {
-                    line_vec.push_back(line_append_vec[i]);
-                    line_append_vec[i].clear();
+                    line="";
+                    while (l<lines.size())
+                    {
+                        if (StartsWith(lines[l],";"))
+                        {
+                            if (Trim(lines[l])==";") break;
+                            else line+=lines[l].substr(1);
+                        }
+                        else line+=lines[l];
+                        l++;
+                    }
+                    line_vec.push_back(line);
                 }
-                line_append_vec.clear();
+                else
+                {
+                    Split(lines[l],line_append_vec,' ');
+                    for (i=0;i<line_append_vec.size();i++)
+                    {
+                        line_vec.push_back(line_append_vec[i]);
+                        line_append_vec[i].clear();
+                    }
+                    line_append_vec.clear();
+                }
             }
             if (_citation.count("title"))
                 _citation_title=Trim(line_vec[_citation["title"]],"'\"");
@@ -3226,13 +3352,14 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     lines.clear();
 
 
-    string header;
+    string header1;
+    string header2;
     //if (revision_date.size()) recvd_initial_deposition_date=revision_date;
     if (pdbx_keywords.size() || recvd_initial_deposition_date.size())
     {
         buf<<"HEADER    "<<left<<setw(40)<<pdbx_keywords.substr(0,40)
             <<recvd_initial_deposition_date.substr(0,10)<<"  XXXX              "<<endl;
-        header=buf.str();
+        header1=buf.str();
         buf.str(string());
     }
     if (author_vec.size())
@@ -3256,7 +3383,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             else if (author_vec[i].size()+2+line.size()>=80)
             {
                 buf<<left<<setw(80)<<line+","<<endl;
-                header+=buf.str();
+                header1+=buf.str();
                 buf.str(string());
                 line="";
                 i--;
@@ -3266,7 +3393,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         if (line.size())
         {
             buf<<left<<setw(80)<<line<<endl;
-            header+=buf.str();
+            header1+=buf.str();
             buf.str(string());
         }
     }
@@ -3291,7 +3418,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             else if (citation_author_vec[i].size()+2+line.size()>=80)
             {
                 buf<<left<<setw(80)<<line+","<<endl;
-                header+=buf.str();
+                header1+=buf.str();
                 buf.str(string());
                 line="";
                 i--;
@@ -3301,7 +3428,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         if (line.size())
         {
             buf<<left<<setw(80)<<line<<endl;
-            header+=buf.str();
+            header1+=buf.str();
             buf.str(string());
         }
     }
@@ -3327,7 +3454,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             else if (line_vec[i].size()+2+line.size()>=80)
             {
                 buf<<left<<setw(80)<<line<<endl;
-                header+=buf.str();
+                header1+=buf.str();
                 buf.str(string());
                 line="";
                 i--;
@@ -3337,7 +3464,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         if (line.size())
         {
             buf<<left<<setw(80)<<line<<endl;
-            header+=buf.str();
+            header1+=buf.str();
             buf.str(string());
         }
         for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
@@ -3374,7 +3501,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             else if (line_vec[i].size()+2+line.size()>=47)
             {
                 buf<<left<<setw(80)<<line<<endl;
-                header+=buf.str();
+                header1+=buf.str();
                 buf.str(string());
                 line="";
                 i--;
@@ -3395,7 +3522,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                 <<setw(6)<<left<<_citation_journal_volume.substr(0,6)
                 <<' '<<setw(5)<<right<<_citation_page_first
                 <<' '<<left<<setw(18)<<_citation_year<<endl;
-            header+=buf.str();
+            header1+=buf.str();
             buf.str(string());
         }
         for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
@@ -3406,21 +3533,21 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             <<setw(11)<<right<<_citation_journal_id_ASTM.substr(0,11)
             <<"  "<<setw(7)<<left<<_citation_country.substr(0,7)<<' '
             <<setw(40)<<left<<_citation_journal_id_ISSN<<endl;
-        header+=buf.str();
+        header1+=buf.str();
         buf.str(string());
     }
     if (_citation_pdbx_database_id_PubMed.size())
     {
         buf<<left<<setw(80)<<"JRNL        PMID   "+
             _citation_pdbx_database_id_PubMed<<endl;
-        header+=buf.str();
+        header1+=buf.str();
         buf.str(string());
     }
     if (_citation_pdbx_database_id_DOI.size())
     {
         buf<<left<<setw(80)<<"JRNL        DOI    "+
             Trim(_citation_pdbx_database_id_DOI,"'\"")<<endl;
-        header+=buf.str();
+        header1+=buf.str();
         buf.str(string());
     }
     int cryst1Count=0;
@@ -3432,12 +3559,12 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         buf<<"CRYST1"<<cryst1_vec[0]<<cryst1_vec[1]<<cryst1_vec[2]
             <<cryst1_vec[3]<<cryst1_vec[4]<<cryst1_vec[5]<<' '<<setw(11)<<left
             <<cryst1_vec[6]<<setw(4)<<right<<cryst1_vec[7]<<"          "<<endl;
-        header+=buf.str();
+        header2+=buf.str();
         buf.str(string());
     }
     int scaleCount=0;
     for (i=0;i<3;i++) for (j=0;j<4;j++) scaleCount+=scale_mat[i][j].size()>0;
-    if (scaleCount==12) header+=
+    if (scaleCount==12) header2+=
         "SCALE1    "+scale_mat[0][0]+scale_mat[0][1]+scale_mat[0][2]+
         "     "     +scale_mat[0][3]+"                         \n"+
         "SCALE2    "+scale_mat[1][0]+scale_mat[1][1]+scale_mat[1][2]+
@@ -3599,16 +3726,68 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     }
     vector<pair<string,string> >().swap(hohLine_vec);
     key.clear();
+
+    map<string,int> chain2entity_map;
+    if (entity2strand.size())
+    {
+        for (j=0;j<entity2strand.size();j++)
+        {
+            line=entity2strand[j];
+            Split(entity2strand[j],line_vec,',');
+            for (i=0;i<line_vec.size();i++)
+            {
+                chain2entity_map[line_vec[i]]=j;
+                line_vec[i].clear();
+            }
+            line_vec.clear();
+        }
+    }
     
     int terNum=0;
     int hydrNum=0;
     int m=0;
+    int seqresCount=0;
+    int seqresWrap=0;
+    int entity=0;
     for (i=0;i<filename_vec.size()-1;i++)
     {
         filename=filename_vec[i];
         cout<<filename<<endl;
         fout.open(filename.c_str());
-        fout<<header;
+        fout<<header1;
+        if (seqres_mat.size() && entity2strand.size())
+        {
+            for (j=0;j<chainID_vec.size();j++)
+            {
+                asym_id=chainID_vec[j];
+                if (chain2entity_map.count(asym_id)==0 ||
+                    bundleID_map[asym_id]!=i+1) continue;
+                entity=chain2entity_map[asym_id];
+                if (seqres_mat.count(entity)==0) continue;
+
+                seqresCount=0;
+                chainID=chainID_map[asym_id];
+                seqresWrap=0;
+                for (m=0;m<seqres_mat[entity].size();m++)
+                {
+                    if (seqresWrap==0)
+                    {
+                        seqresCount++;
+                        buf<<"SEQRES"<<right<<setw(4)<<seqresCount<<' '<<chainID
+                            <<setw(5)<<seqres_mat[entity].size()<<" ";
+                    }
+                    buf<<" "<<seqres_mat[entity][m];
+                    seqresWrap++;
+                    if (seqresWrap==13 || m+1==seqres_mat[entity].size())
+                    {
+                        fout<<left<<setw(80)<<buf.str()<<'\n';
+                        seqresWrap=0;
+                        buf.str(string());
+                    }
+                }
+            }
+        }
+        fout<<header2;
         for (m=0;m<model_num_vec.size();m++)
         {
             pdbx_PDB_model_num=model_num_vec[m];
@@ -3731,6 +3910,8 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     map<string,int> ().swap(_pdbx_database_status);
     map<string,int> ().swap(_pdbx_audit_revision_history);
     map<string,int> ().swap(_struct_keywords);
+    map<string,int> ().swap(_entity_poly_seq);
+    map<string,int> ().swap(_entity_poly);
     
     map<string,char>().swap(chainID_map);
     map<string,int> ().swap(bundleID_map);
@@ -3756,7 +3937,8 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     vector<string>().swap(lines);
     vector<string>().swap(line_vec);
     vector<string>().swap(line_append_vec);
-    string ().swap(header);
+    string ().swap(header1);
+    string ().swap(header2);
     _citation_title.clear();
     _citation_pdbx_database_id_PubMed.clear();
     _citation_pdbx_database_id_DOI.clear();
@@ -3794,6 +3976,10 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     map<string,size_t>().swap(chainAtomNum_map);
     map<string,size_t>().swap(chainHydrNum_map);
     vector<string> ().swap(chainID_vec);
+    vector<string> ().swap(seqres_vec);
+    map<int,vector<string> > ().swap(seqres_mat);
+    vector<string> ().swap(entity2strand);
+    map<string,int> ().swap(chain2entity_map);
     return bundleNum;
 }
 
@@ -3801,11 +3987,17 @@ int main(int argc,char **argv)
 {
     string infile ="";
     string pdbid  ="";
+    int read_seqres=0;
+    int read_dbref =0;
 
     for (int a=1;a<argc;a++)
     {
         if (StartsWith(argv[a],"-p="))
             pdbid=((string)(argv[a])).substr(3);
+        else if (StartsWith(argv[a],"-seqres="))
+            read_seqres=atoi((((string)(argv[a])).substr(8)).c_str());
+        else if (StartsWith(argv[a],"-dbref="))
+            read_dbref=atoi((((string)(argv[a])).substr(8)).c_str());
         else if (infile.size()==0)
             infile=argv[a];
         else
@@ -3821,7 +4013,7 @@ int main(int argc,char **argv)
         return 1;
     }
 
-    BeEM(infile,pdbid);
+    BeEM(infile,pdbid,read_seqres,read_dbref);
 
     /* clean up */
     string ().swap(infile);
