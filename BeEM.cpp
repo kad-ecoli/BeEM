@@ -3548,9 +3548,6 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                         line+=' '+line_vec[i].substr(0,j);
                         line_vec[i]=line_vec[i].substr(j);
                     }
-                    cout<<"j="<<j<<" c="<<char(line_vec[i][j])<<" found="
-                        <<punctuations1.find(line_vec[i][j])
-                        <<" line="<<line<<" line_vec[i]="<<line_vec[i]<<endl;
                     break;
                 }
                 buf<<left<<setw(80)<<line<<endl;
