@@ -154,6 +154,7 @@ inline string formatString(const string &inputString,const int width=8,
     const int digit=3)
 {
     string result=Trim(inputString," ");
+    if (StartsWith(result,"00")) result='0'+lstrip(result,"0");
     size_t found=result.find_first_of('.');
     int i;
     if (found==string::npos)
