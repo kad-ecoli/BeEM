@@ -170,7 +170,7 @@ inline string formatString(const string &inputString,const int width=8,
         for (i=0;i+found+1<curWidth;i++) extra_prod*=10;
         int first=atoi((result.substr(0,found)).c_str())*extra_prod;
         int second=atoi((lstrip(result.substr(found+1),"0")).c_str());
-        if (first<0) second=-second;
+        if (result[0]=='-') second=-second;
         stringstream buf;
         buf<<fixed<<setprecision(digit)<<(first+second+.5)/extra_prod;
         result=buf.str();
@@ -3357,7 +3357,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     //if (revision_date.size()) recvd_initial_deposition_date=revision_date;
     if (pdbx_keywords.size() || recvd_initial_deposition_date.size())
     {
-        buf<<"HEADER    "<<left<<setw(40)<<pdbx_keywords.substr(0,40)
+        buf<<"HEADER    "<<left<<setw(40)<<Upper(pdbx_keywords.substr(0,40))
             <<recvd_initial_deposition_date.substr(0,10)<<"  XXXX              "<<endl;
         header1=buf.str();
         buf.str(string());
@@ -3380,7 +3380,8 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                 }
                 line+=author_vec[i];
             }
-            else if (author_vec[i].size()+2+line.size()>=80)
+            else if (author_vec[i].size()+line.size()>=
+                77+(i+1==author_vec.size()))
             {
                 buf<<left<<setw(80)<<line+","<<endl;
                 header1+=buf.str();
@@ -3415,7 +3416,8 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                 }
                 line+=citation_author_vec[i];
             }
-            else if (citation_author_vec[i].size()+2+line.size()>=80)
+            else if (citation_author_vec[i].size()+line.size()>=
+                77+(i+1==citation_author_vec.size()))
             {
                 buf<<left<<setw(80)<<line+","<<endl;
                 header1+=buf.str();
@@ -3451,7 +3453,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                 }
                 line+=line_vec[i];
             }
-            else if (line_vec[i].size()+2+line.size()>=80)
+            else if (line_vec[i].size()+line.size()>=79)
             {
                 buf<<left<<setw(80)<<line<<endl;
                 header1+=buf.str();
@@ -3520,14 +3522,14 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                 _citation_page_first.substr(_citation_page_first.size()-5);
             buf<<left<<setw(49)<<line
                 <<setw(6)<<left<<_citation_journal_volume.substr(0,6)
-                <<' '<<setw(5)<<right<<_citation_page_first
+                <<' '<<setw(5)<<right<<Upper(_citation_page_first)
                 <<' '<<left<<setw(18)<<_citation_year<<endl;
             header1+=buf.str();
             buf.str(string());
         }
         for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
     }
-    if (_citation_journal_id_ISSN.size())
+    //if (_citation_journal_id_ISSN.size())
     {
         buf<<"JRNL        REFN   "
             <<setw(11)<<right<<_citation_journal_id_ASTM.substr(0,11)
