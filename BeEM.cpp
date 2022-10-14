@@ -2548,6 +2548,12 @@ int read_semi_colon(vector<string> &line_vec, const int fields, int l,
     const bool ignore_quotation=false)
 {
     int i;
+    if (line_vec.size() && StartsWith(line_vec[0],";"))
+    {
+        l--;
+        for (i=0;i<line_vec.size();i++) line_vec[i].clear();
+        line_vec.clear();
+    }
     while (line_vec.size()<fields)
     {
         l++;
@@ -3076,12 +3082,14 @@ int BeEM(const string &infile, string &pdbid,
                 j=_audit_author.size();
                 _audit_author[line]=j;
             }
-            else if (StartsWith(line,"_audit_author.name") && line_vec.size()>1)
+            else if (StartsWith(line,"_audit_author.name"))
             {
+                l=read_semi_colon(line_vec, 2,
+                    l, lines, line_append_vec, line);
                 line=line_vec[1];
                 line=Trim(line,"'\"");
                 for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
-                Split(line,line_vec,',');
+                Split(line,line_vec,',',true);
                 if (line_vec.size()>=2) line=lstrip(line_vec[1])+line_vec[0];
                 author_vec.push_back(Upper(line));
             }
@@ -3089,10 +3097,12 @@ int BeEM(const string &infile, string &pdbid,
         else if (_audit_author.size() && 
                  _audit_author.count("_audit_author.name"))
         {
+            l=read_semi_colon(line_vec, _audit_author.size(),
+                l, lines, line_append_vec, line);
             line=line_vec[_audit_author["_audit_author.name"]];
             line=Trim(line,"'\"");
             for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
-            Split(line,line_vec,',');
+            Split(line,line_vec,',',true);
             if (line_vec.size()>=2) line=lstrip(line_vec[1])+line_vec[0];
             author_vec.push_back(Upper(line));
         }
@@ -3112,7 +3122,7 @@ int BeEM(const string &infile, string &pdbid,
                 line=line_vec[1];
                 line=Trim(line,"'\"");
                 for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
-                Split(line,line_vec,',');
+                Split(line,line_vec,',',true);
                 if (line_vec.size()>=2)
                     line=lstrip(line_vec[1])+line_vec[0];
                 citation_author_vec.push_back(line);
@@ -3408,6 +3418,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         author_txt.clear();
         int Continuation=0; 
         line="";
+        size_t found;
         for (i=0;i<author_vec.size();i++)
         {
             if (line.size()==0)
@@ -3424,6 +3435,12 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             }
             else if (author_vec[i].size()+line.size()>=79)
             {
+                found=author_vec[i].find_first_of('-');
+                if (found!=string::npos && found+line.size()<=77)
+                {
+                    line+=' '+author_vec[i].substr(0,found+1);
+                    author_vec[i]=author_vec[i].substr(found+1);
+                }
                 buf<<left<<setw(80)<<line<<endl;
                 header1+=buf.str();
                 buf.str(string());
@@ -3451,11 +3468,30 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                 if (Continuation==1) line="JRNL        AUTH   ";
                 else
                 {
-                    buf<<"JRNL        AUTH "<<Continuation<<" ";
+                    buf<<"JRNL        AUTH"<<right<<setw(2)<<Continuation<<" ";
                     line=buf.str();
                     buf.str(string());
                 }
-                line+=citation_author_vec[i];
+                if (line.size()+citation_author_vec[i].size()<=79)
+                    line+=citation_author_vec[i];
+                else
+                {
+                    Split(citation_author_vec[i],line_vec,' ');
+                    for (j=0;j<line_vec.size();j++)
+                    {
+                        if (line.size()+line_vec[j].size()<=79)
+                            line+=line_vec[j]+' ';
+                        else break;
+                    }
+                    buf<<left<<setw(80)<<line<<endl;
+                    header1+=buf.str();
+                    buf.str(string());
+                    citation_author_vec[i]=Join(" ",line_vec,j);
+                    for (j=0;j<line_vec.size();j++) line_vec[j].clear();
+                    line_vec.clear();
+                    line="";
+                    i--;
+                }
             }
             else if (citation_author_vec[i].size()+line.size()>=
                 77+(i+1==citation_author_vec.size()))
@@ -3568,7 +3604,8 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         }
         for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
     }
-    //if (_citation_journal_id_ISSN.size())
+    if (_citation_journal_id_ASTM.size() || _citation_country.size() ||
+        _citation_journal_id_ISSN.size())
     {
         buf<<"JRNL        REFN   "
             <<setw(11)<<right<<_citation_journal_id_ASTM.substr(0,11)
@@ -3592,14 +3629,17 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         buf.str(string());
     }
     int cryst1Count=0;
-    for (i=0;i<6;i++) cryst1Count+=cryst1_vec[i].size()>0;
-    for (i=6;i<8;i++)
-        if (cryst1_vec[i]=="?" || cryst1_vec[i]==".") cryst1_vec[i]="";
-    if (cryst1Count==6)
+    for (i=0;i<cryst1_vec.size();i++)
     {
-        buf<<"CRYST1"<<cryst1_vec[0]<<cryst1_vec[1]<<cryst1_vec[2]
-            <<cryst1_vec[3]<<cryst1_vec[4]<<cryst1_vec[5]<<' '<<setw(11)<<left
-            <<cryst1_vec[6]<<setw(4)<<right<<cryst1_vec[7]<<"          "<<endl;
+        cryst1Count+=cryst1_vec[i].size()>0;
+        if (i>=6 && cryst1_vec[i]=="?" || cryst1_vec[i]==".") cryst1_vec[i]="";
+    }
+    if (cryst1Count)
+    {
+        buf<<"CRYST1"<<setw(9)<<cryst1_vec[0]<<setw(9)<<cryst1_vec[1]<<setw(9)
+            <<cryst1_vec[2]<<setw(7)<<cryst1_vec[3]<<setw(7)<<cryst1_vec[4]
+            <<setw(7)<<cryst1_vec[5]<<' '<<setw(11)<<left<<cryst1_vec[6]
+            <<setw(4)<<right<<cryst1_vec[7]<<"          "<<endl;
         header2+=buf.str();
         buf.str(string());
     }
