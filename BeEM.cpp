@@ -3402,6 +3402,9 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     string header1;
     string header2;
     //if (revision_date.size()) recvd_initial_deposition_date=revision_date;
+    string punctuations1="([{";
+    string punctuations=punctuations1+"!#$%&')*+,-./:;<=>?@\\]^_|}~";
+    size_t found;
     if (pdbx_keywords.size() || recvd_initial_deposition_date.size())
     {
         buf<<"HEADER    "<<left<<setw(40)<<Upper(pdbx_keywords.substr(0,40))
@@ -3418,7 +3421,6 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         author_txt.clear();
         int Continuation=0; 
         line="";
-        size_t found;
         for (i=0;i<author_vec.size();i++)
         {
             if (line.size()==0)
@@ -3530,8 +3532,27 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                 }
                 line+=line_vec[i];
             }
-            else if (line_vec[i].size()+line.size()>=79)
+            else if (line.size()+line_vec[i].size()>=79)
             {
+                for (j=line_vec[i].size()-1;j>0;j--)
+                {
+                    if (line.size()+j>=78 || punctuations.find(
+                        line_vec[i][j])==string::npos) continue;
+                    if (punctuations1.find(line_vec[i][j])==string::npos)
+                    {   // punctuations2
+                        line+=' '+line_vec[i].substr(0,j+1);
+                        line_vec[i]=line_vec[i].substr(j+1);
+                    }
+                    else
+                    {
+                        line+=' '+line_vec[i].substr(0,j);
+                        line_vec[i]=line_vec[i].substr(j);
+                    }
+                    cout<<"j="<<j<<" c="<<char(line_vec[i][j])<<" found="
+                        <<punctuations1.find(line_vec[i][j])
+                        <<" line="<<line<<" line_vec[i]="<<line_vec[i]<<endl;
+                    break;
+                }
                 buf<<left<<setw(80)<<line<<endl;
                 header1+=buf.str();
                 buf.str(string());
@@ -3603,10 +3624,10 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             else line+=" "+line_vec[i];
         }
         for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
-    }
-    if (_citation_journal_id_ASTM.size() || _citation_country.size() ||
-        _citation_journal_id_ISSN.size())
-    {
+    //}
+    //if (_citation_journal_id_ASTM.size() || _citation_country.size() ||
+        //_citation_journal_id_ISSN.size())
+    //{
         buf<<"JRNL        REFN   "
             <<setw(11)<<right<<_citation_journal_id_ASTM.substr(0,11)
             <<"  "<<setw(7)<<left<<_citation_country.substr(0,7)<<' '
@@ -4031,6 +4052,8 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     _citation_journal_id_ASTM.clear();
     _citation_country.clear();
     _citation_journal_id_ISSN.clear();
+    punctuations1.clear();
+    punctuations.clear();
 
     group_PDB.clear();
     type_symbol.clear();
