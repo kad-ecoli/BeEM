@@ -2543,6 +2543,43 @@ inline string formatANISOU2(const string &inputString)
     return result;
 }
 
+int read_semi_colon(vector<string> &line_vec, const int fields, int l,
+    const vector<string> &lines, vector<string> &line_append_vec, string &line,
+    const bool ignore_quotation=false)
+{
+    int i;
+    while (line_vec.size()<fields)
+    {
+        l++;
+        if (StartsWith(lines[l],";"))
+        {
+            line="";
+            while (l<lines.size())
+            {
+                if (StartsWith(lines[l],";"))
+                {
+                    if (Trim(lines[l])==";") break;
+                    else line+=lines[l].substr(1);
+                }
+                else line+=lines[l];
+                l++;
+            }
+            line_vec.push_back(line);
+        }
+        else
+        {
+            Split(lines[l],line_append_vec,' ',ignore_quotation);
+            for (i=0;i<line_append_vec.size();i++)
+            {
+                line_vec.push_back(line_append_vec[i]);
+                line_append_vec[i].clear();
+            }
+            line_append_vec.clear();
+        }
+    }
+    return l;
+}
+
 int BeEM(const string &infile, string &pdbid, 
     const int read_seqres, const int read_dbref)
 {
@@ -2753,35 +2790,8 @@ int BeEM(const string &infile, string &pdbid,
         else if (read_seqres && _entity_poly.size() && 
             _entity_poly.count("entity_id") && _entity_poly.count("pdbx_strand_id"))
         {
-            while (line_vec.size()<_entity_poly.size())
-            {
-                l++;
-                if (StartsWith(lines[l],";"))
-                {
-                    line="";
-                    while (l<lines.size())
-                    {
-                        if (StartsWith(lines[l],";"))
-                        {
-                            if (Trim(lines[l])==";") break;
-                            else line+=lines[l].substr(1);
-                        }
-                        else line+=lines[l];
-                        l++;
-                    }
-                    line_vec.push_back(line);
-                }
-                else
-                {
-                    Split(lines[l],line_append_vec,' ');
-                    for (i=0;i<line_append_vec.size();i++)
-                    {
-                        line_vec.push_back(line_append_vec[i]);
-                        line_append_vec[i].clear();
-                    }
-                    line_append_vec.clear();
-                }
-            }
+            l=read_semi_colon(line_vec, _entity_poly.size(),
+                l, lines, line_append_vec, line);
             entity_id=line_vec[_entity_poly["entity_id"]];
             i=atoi(entity_id.c_str());
             while (entity2strand.size()<=i) entity2strand.push_back("");
@@ -2861,36 +2871,7 @@ int BeEM(const string &infile, string &pdbid,
             }
             else
             {
-                while (line_vec.size()<=1)
-                {
-                    l++;
-                    if (StartsWith(lines[l],";"))
-                    {
-                        line="";
-                        while (l<lines.size())
-                        {
-                            if (StartsWith(lines[l],";"))
-                            {
-                                if (Trim(lines[l])==";") break;
-                                else line+=lines[l].substr(1);
-                            }
-                            else line+=lines[l];
-                            l++;
-                        }
-                        line_vec.push_back(line);
-                    }
-                    else
-                    {
-                        Split(lines[l],line_append_vec,' ');
-                        for (i=0;i<line_append_vec.size();i++)
-                        {
-                            line_vec.push_back(line_append_vec[i]);
-                            line_append_vec[i].clear();
-                        }
-                        line_append_vec.clear();
-                    }
-                }
-
+                l=read_semi_colon(line_vec, 2, l, lines, line_append_vec, line);
                 if      (line_vec[0]=="_citation.title")
                     _citation_title=Trim(line_vec[1],"'\"");
                 else if (line_vec[0]=="_citation.pdbx_database_id_PubMed")
@@ -2916,35 +2897,8 @@ int BeEM(const string &infile, string &pdbid,
         else if (_citation.size() && (_citation.count("id")==0 ||
                  line_vec[_citation["id"]]=="primary"))
         {
-            while (line_vec.size()<_citation.size())
-            {
-                l++;
-                if (StartsWith(lines[l],";"))
-                {
-                    line="";
-                    while (l<lines.size())
-                    {
-                        if (StartsWith(lines[l],";"))
-                        {
-                            if (Trim(lines[l])==";") break;
-                            else line+=lines[l].substr(1);
-                        }
-                        else line+=lines[l];
-                        l++;
-                    }
-                    line_vec.push_back(line);
-                }
-                else
-                {
-                    Split(lines[l],line_append_vec,' ');
-                    for (i=0;i<line_append_vec.size();i++)
-                    {
-                        line_vec.push_back(line_append_vec[i]);
-                        line_append_vec[i].clear();
-                    }
-                    line_append_vec.clear();
-                }
-            }
+            l=read_semi_colon(line_vec, _citation.size(),
+                l, lines, line_append_vec, line);
             if (_citation.count("title"))
                 _citation_title=Trim(line_vec[_citation["title"]],"'\"");
             if (_citation.count("pdbx_database_id_PubMed"))
@@ -3168,10 +3122,12 @@ int BeEM(const string &infile, string &pdbid,
              && (_citation_author.count("citation_id")==0 || 
              line_vec[_citation_author["citation_id"]]=="primary"))
         {
+            l=read_semi_colon(line_vec, _citation_author.size(),
+                l, lines, line_append_vec, line);
             line=line_vec[_citation_author["name"]];
             line=Trim(line,"'\"");
             for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
-            Split(line,line_vec,',');
+            Split(line,line_vec,',',true);
             if (line_vec.size()>=2)
                 line=lstrip(line_vec[1])+line_vec[0];
             citation_author_vec.push_back(line);
@@ -3445,6 +3401,11 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     }
     if (author_vec.size())
     {
+        string author_txt=Join(", ",author_vec);
+        for (i=0;i<author_vec.size();i++) author_vec[i].clear();
+        author_vec.clear();
+        Split(author_txt, author_vec,' ');
+        author_txt.clear();
         int Continuation=0; 
         line="";
         for (i=0;i<author_vec.size();i++)
@@ -3461,16 +3422,15 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                 }
                 line+=author_vec[i];
             }
-            else if (author_vec[i].size()+line.size()>=
-                77+(i+1==author_vec.size()))
+            else if (author_vec[i].size()+line.size()>=79)
             {
-                buf<<left<<setw(80)<<line+","<<endl;
+                buf<<left<<setw(80)<<line<<endl;
                 header1+=buf.str();
                 buf.str(string());
                 line="";
                 i--;
             }
-            else line+=", "+author_vec[i];
+            else line+=' '+author_vec[i];
         }
         if (line.size())
         {
@@ -3517,7 +3477,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     }
     if (_citation_title.size())
     {
-        Split(_citation_title,line_vec,' ');
+        Split(_citation_title,line_vec,' ',true);
         int Continuation=0; 
         line="";
         for (i=0;i<line_vec.size();i++)
@@ -3567,9 +3527,9 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         Split(_citation_journal_abbrev,line_vec,' ');
         int Continuation=0; 
         line="";
-        for (i=0;i<line_vec.size();i++)
+        for (i=0;i<=line_vec.size();i++)
         {
-            if (line.size()==0)
+            if (i<line_vec.size() && line.size()==0)
             {
                 Continuation++;
                 if (Continuation==1) line="JRNL        REF    ";
@@ -3581,32 +3541,30 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                 }
                 line+=line_vec[i];
             }
-            else if (line_vec[i].size()+line.size()>=47)
+            else if (i==line_vec.size() || line_vec[i].size()+line.size()>=47)
             {
-                buf<<left<<setw(80)<<line<<endl;
+                if (Continuation==1)
+                {
+                    if (_citation_journal_volume.size())
+                    {
+                        while (_citation_journal_volume.size()<4)
+                            _citation_journal_volume=' '+_citation_journal_volume;
+                        _citation_journal_volume="V."+_citation_journal_volume;
+                    }
+                    if (_citation_page_first.size()>5) _citation_page_first=
+                        _citation_page_first.substr(_citation_page_first.size()-5);
+                    buf<<left<<setw(49)<<line
+                        <<setw(6)<<left<<_citation_journal_volume.substr(0,6)
+                        <<' '<<setw(5)<<right<<Upper(_citation_page_first)
+                        <<' '<<left<<setw(18)<<_citation_year<<endl;;
+                }
+                else buf<<left<<setw(80)<<line<<endl;
                 header1+=buf.str();
                 buf.str(string());
                 line="";
-                i--;
+                if (i<line_vec.size()) i--;
             }
             else line+=" "+line_vec[i];
-        }
-        if (line.size())
-        {
-            if (_citation_journal_volume.size())
-            {
-                while (_citation_journal_volume.size()<4)
-                    _citation_journal_volume=' '+_citation_journal_volume;
-                _citation_journal_volume="V."+_citation_journal_volume;
-            }
-            if (_citation_page_first.size()>5) _citation_page_first=
-                _citation_page_first.substr(_citation_page_first.size()-5);
-            buf<<left<<setw(49)<<line
-                <<setw(6)<<left<<_citation_journal_volume.substr(0,6)
-                <<' '<<setw(5)<<right<<Upper(_citation_page_first)
-                <<' '<<left<<setw(18)<<_citation_year<<endl;
-            header1+=buf.str();
-            buf.str(string());
         }
         for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
     }
