@@ -3500,7 +3500,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                 }
                 line+=line_vec[i];
             }
-            else if (line_vec[i].size()+2+line.size()>=47)
+            else if (line_vec[i].size()+line.size()>=47)
             {
                 buf<<left<<setw(80)<<line<<endl;
                 header1+=buf.str();
