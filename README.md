@@ -16,10 +16,9 @@ g++ -O3 BeEM.cpp -o BeEM
 ```
 Example usage:
 ```bash
-curl https://files.rcsb.org/download/4u50.cif -o 4u50.cif
-BeEM 4u50.cif
+BeEM example_input/3j6b.cif
 ```
-Output files will be 4u50-pdb-bundle* for this example.
+Output files should be identical to those in ``example_output/3j6b-*``.
 On Linux, Mac and Windows Subsystem for Linux, BeEM read input files with and without gzip compression.
 
 ## Limitations ##
