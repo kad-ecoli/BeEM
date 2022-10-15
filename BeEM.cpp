@@ -19,6 +19,12 @@ const char* docstring=""
 "    -gzip={0,1}      whether to perform gzip compression\n"
 "                     0 - (default) do not perform compression\n"
 "                     1 - perform compression if tar and gzip are available\n"
+"    -upper={0,1,2}   whether to convert PDB header text to upper case\n"
+"                     0 - do not convert to upper case\n"
+"                     1 - (default) only convert header text of single PDB\n"
+"                         file to upper case; allow lower case header for\n"
+"                         Best Effort/Minimal PDB bundle\n"
+"                     2 - convert all PDB text to upper case\n"
 ;
 
 #include <vector>
@@ -2592,8 +2598,8 @@ int read_semi_colon(vector<string> &line_vec, const int fields, int l,
     return l;
 }
 
-int BeEM(const string &infile, string &pdbid, 
-    const int read_seqres, const int read_dbref, const int do_gzip)
+int BeEM(const string &infile, string &pdbid, const int read_seqres,
+    const int read_dbref, const int do_gzip, const int do_upper)
 {
 
     stringstream buf;
@@ -2656,6 +2662,7 @@ int BeEM(const string &infile, string &pdbid,
 
     string entity_id="";
     string mon_id="";
+    string pdbx_strand_id="";
 
     string group_PDB  ="ATOM"; // (ATOM/HETATM)
     string type_symbol="C";    // (element symbol)
@@ -2713,13 +2720,23 @@ int BeEM(const string &infile, string &pdbid,
         if (line_vec.size()==0) continue;
         else if (line_vec.size()==1 && line_vec[0]=="#")
         {
-            if (_entity_poly_seq.size() && entity_id.size())
+            if (entity_id.size())
             {
-                seqres_mat[atoi(entity_id.c_str())]=seqres_vec;
-                for (i=0;i<seqres_vec.size();i++) seqres_vec[i].clear();
-                seqres_vec.clear();
+                if (_entity_poly_seq.size())
+                {
+                    seqres_mat[atoi(entity_id.c_str())]=seqres_vec;
+                    for (i=0;i<seqres_vec.size();i++) seqres_vec[i].clear();
+                    seqres_vec.clear();
+                }
+                else if (pdbx_strand_id.size())
+                {
+                    i=atoi(entity_id.c_str());
+                    while (entity2strand.size()<=i) entity2strand.push_back("");
+                    entity2strand[i]=pdbx_strand_id;
+                }
+                entity_id.clear();
             }
-            entity_id="";
+            pdbx_strand_id.clear();
             _audit_author.clear();
             _citation_author.clear();
             _citation.clear();
@@ -2787,16 +2804,27 @@ int BeEM(const string &infile, string &pdbid,
             recvd_initial_deposition_date=line_vec[
                 _pdbx_database_status["recvd_initial_deposition_date"]];
         }
-        else if (read_seqres && StartsWith(line,"_entity_poly.") && loop_)
+        else if (read_seqres && StartsWith(line,"_entity_poly."))
         {
-            j=_entity_poly.size();
-            line=line_vec[0];
-            for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
-            Split(line,line_vec,'.');
-            if (line_vec.size()>1)
+            if (loop_)
             {
-                line=line_vec[1];
-                _entity_poly[line]=j;
+                j=_entity_poly.size();
+                line=line_vec[0];
+                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                Split(line,line_vec,'.');
+                if (line_vec.size()>1)
+                {
+                    line=line_vec[1];
+                    _entity_poly[line]=j;
+                }
+            }
+            else
+            {
+                l=read_semi_colon(line_vec, 2, l, lines, line_append_vec, line);
+                if (line_vec[0]=="_entity_poly.entity_id")
+                    entity_id=line_vec[1];
+                else if (line_vec[0]=="_entity_poly.pdbx_strand_id")
+                    pdbx_strand_id=line_vec[1];
             }
         }
         else if (read_seqres && _entity_poly.size() && 
@@ -3874,6 +3902,11 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     int seqresCount=0;
     int seqresWrap=0;
     int entity=0;
+    if ((do_upper && !writebundle) || do_upper==2)
+    {
+        header1=Upper(header1);
+        header2=Upper(header2);
+    }
     for (i=0;i<filename_vec.size()-1;i++)
     {
         filename=filename_vec[i];
@@ -4140,6 +4173,7 @@ int main(int argc,char **argv)
     int read_seqres=0;
     int read_dbref =0;
     int do_gzip    =0;
+    int do_upper   =1;
 
     for (int a=1;a<argc;a++)
     {
@@ -4151,6 +4185,8 @@ int main(int argc,char **argv)
             read_dbref=atoi((((string)(argv[a])).substr(8)).c_str());
         else if (StartsWith(argv[a],"-gzip="))
             do_gzip=atoi((((string)(argv[a])).substr(6)).c_str());
+        else if (StartsWith(argv[a],"-upper="))
+            do_upper=atoi((((string)(argv[a])).substr(7)).c_str());
         else if (infile.size()==0)
             infile=argv[a];
         else
@@ -4166,7 +4202,7 @@ int main(int argc,char **argv)
         return 1;
     }
 
-    BeEM(infile,pdbid,read_seqres,read_dbref,do_gzip);
+    BeEM(infile,pdbid,read_seqres,read_dbref,do_gzip,do_upper);
 
     /* clean up */
     string ().swap(infile);
