@@ -4249,6 +4249,11 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     vector<string> ().swap(entity2strand);
     map<string,int> ().swap(chain2entity_map);
     
+    map<string,map<string,int> >().swap(SplitChain_map);
+    map<string,map<string,int> >().swap(SplitChainRes_map);
+    map<string,int>().swap(SplitChainNum_map);
+    res.clear();
+    
     /* compression */
     if (do_gzip)
     {
