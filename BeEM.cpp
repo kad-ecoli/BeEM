@@ -167,10 +167,10 @@ inline string formatString(const string &inputString,const int width=8,
         for (i=0;i<((found+digit+1)-curWidth);i++) result+='0';
     else if (curWidth>found+digit+1)
     {
-        int extra_prod=1;
+        long int extra_prod=1;
         for (i=0;i+found+1<curWidth;i++) extra_prod*=10;
-        int first=atoi((result.substr(0,found)).c_str())*extra_prod;
-        int second=atoi((lstrip(result.substr(found+1),"0")).c_str());
+        long int first=atoi((result.substr(0,found)).c_str())*extra_prod;
+        long int second=atoi((lstrip(result.substr(found+1),"0")).c_str());
         if (result[0]=='-') second=-second;
         stringstream buf;
         buf<<fixed<<setprecision(digit)<<(first+second+.5)/extra_prod;
@@ -196,8 +196,8 @@ inline string formatString(const string &inputString,const int width=8,
         curWidth=result.size();
         if (curWidth>width)
         {
-            //result=result.substr(0,width);
-            result=result.substr(result.size()-width);
+            result=result.substr(0,width);
+            //result=result.substr(result.size()-width);
         }
         else if (curWidth<width)
             for (i=0;i<width-curWidth;i++) result=' '+result;
@@ -2469,29 +2469,30 @@ inline string formatANISOU(const string &inputString)
     }
     string post_decimal=result.substr(found+1);
     int i;
-    int second=atoi(post_decimal.c_str());
+    long int second=atoi(post_decimal.c_str());
     if (result[0]=='-') second=-second;
     if (post_decimal.size()>4)
     {
         double anisou_dbl=atof(result.c_str())*10000;
-        int    anisou_int=round(anisou_dbl);
+        long int anisou_int=round(anisou_dbl);
         if (rstrip(post_decimal.substr(4),"0")=="5" &&
-            (post_decimal[3]-'0') % 2 ==0)  anisou_int=int(anisou_dbl);
+            (post_decimal[3]-'0') % 2 ==0)  anisou_int=(long int)(anisou_dbl);
         buf<<right<<setw(7)<<anisou_int<<flush;
         result=buf.str();
         buf.str(string());
         post_decimal.clear();
-        return result;
+        return result.substr(0,7);
     }
     else if (post_decimal.size()<4)
         for (i=0;i<4-post_decimal.size();i++) second*=10;
     
     string pre_decimal=result.substr(0,found);
-    int first=atoi(pre_decimal.c_str());
+    long int first=atoi(pre_decimal.c_str());
     buf<<right<<setw(7)<<first*10000+second<<flush;
     result=buf.str();
     buf.str(string());
-    if (result.size()>7) result=result.substr(7-result.size());
+    //if (result.size()>7) result=result.substr(7-result.size());
+    if (result.size()>7) result=result.substr(0,7);
     pre_decimal.clear();
     post_decimal.clear();
     return result;
@@ -2545,7 +2546,7 @@ inline string formatANISOU2(const string &inputString)
 
 int read_semi_colon(vector<string> &line_vec, const int fields, int l,
     const vector<string> &lines, vector<string> &line_append_vec, string &line,
-    const bool ignore_quotation=false)
+    const bool ignore_quotation=false,const bool add_space=false)
 {
     int i;
     if (line_vec.size() && StartsWith(line_vec[0],";"))
@@ -2568,6 +2569,7 @@ int read_semi_colon(vector<string> &line_vec, const int fields, int l,
                     else line+=lines[l].substr(1);
                 }
                 else line+=lines[l];
+                if (add_space) line+=' ';
                 l++;
             }
             line_vec.push_back(line);
@@ -2877,7 +2879,7 @@ int BeEM(const string &infile, string &pdbid,
             }
             else
             {
-                l=read_semi_colon(line_vec, 2, l, lines, line_append_vec, line);
+                l=read_semi_colon(line_vec, 2, l, lines, line_append_vec, line,false,true);
                 if      (line_vec[0]=="_citation.title")
                     _citation_title=Trim(line_vec[1],"'\"");
                 else if (line_vec[0]=="_citation.pdbx_database_id_PubMed")
@@ -2904,7 +2906,7 @@ int BeEM(const string &infile, string &pdbid,
                  line_vec[_citation["id"]]=="primary"))
         {
             l=read_semi_colon(line_vec, _citation.size(),
-                l, lines, line_append_vec, line);
+                l, lines, line_append_vec, line,false,true);
             if (_citation.count("title"))
                 _citation_title=Trim(line_vec[_citation["title"]],"'\"");
             if (_citation.count("pdbx_database_id_PubMed"))
@@ -3243,9 +3245,11 @@ int BeEM(const string &infile, string &pdbid,
                 seq_id=line_vec[_atom_site["pdbx_auth_seq_id"]];
             else if (_atom_site.count("pdbx_label_seq_id"))
                 seq_id=line_vec[_atom_site["pdbx_label_seq_id"]];
+            if (seq_id.size()>=2) seq_id=lstrip(seq_id,"0");
             if (seq_id.size()==3) seq_id=" "+seq_id;
             else if (seq_id.size()==2) seq_id="  "+seq_id;
             else if (seq_id.size()==1) seq_id="   "+seq_id;
+            //else if (seq_id.size()>4) seq_id=seq_id.substr(seq_id.size()-4);
 
             if (_atom_site.count("pdbx_PDB_ins_code"))
                 pdbx_PDB_ins_code=line_vec[_atom_site["pdbx_PDB_ins_code"]];
@@ -3402,8 +3406,6 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     string header1;
     string header2;
     //if (revision_date.size()) recvd_initial_deposition_date=revision_date;
-    string punctuations1="([{";
-    string punctuations=punctuations1+"!#$%&')*+,-./:;<=>?@\\]^_|}~";
     size_t found;
     if (pdbx_keywords.size() || recvd_initial_deposition_date.size())
     {
@@ -3417,7 +3419,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         string author_txt=Join(", ",author_vec);
         for (i=0;i<author_vec.size();i++) author_vec[i].clear();
         author_vec.clear();
-        Split(author_txt, author_vec,' ');
+        Split(author_txt, author_vec,' ',true);
         author_txt.clear();
         int Continuation=0; 
         line="";
@@ -3530,25 +3532,37 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                     line=buf.str();
                     buf.str(string());
                 }
-                line+=line_vec[i];
+                if (line.size()+line_vec[i].size()<79)
+                    line+=line_vec[i];
+                else
+                {
+                    bool add_word=false;
+                    for (j=line_vec[i].size()-2;j>0;j--)
+                    {
+                        if (line.size()+j>=78 || line_vec[i][j]!=')'||
+                            line_vec[i][j+1]=='-') continue;
+                        line+=line_vec[i].substr(0,j+1);
+                        line_vec[i]=line_vec[i].substr(j+1);
+                        add_word=true;
+                        i--;
+                        break;
+                    }
+                    if (add_word==false) 
+                        line+=line_vec[i].substr(0,78-line_vec[i].size());
+                }
             }
             else if (line.size()+line_vec[i].size()>=79)
             {
-                for (j=line_vec[i].size()-1;j>0;j--)
+                if (line_vec[i].size()>60)
                 {
-                    if (line.size()+j>=78 || punctuations.find(
-                        line_vec[i][j])==string::npos) continue;
-                    if (punctuations1.find(line_vec[i][j])==string::npos)
-                    {   // punctuations2
+                    for (j=line_vec[i].size()-2;j>0;j--)
+                    {
+                        if (line.size()+j>=78 || line_vec[i][j]!=')'||
+                            line_vec[i][j+1]=='-') continue;
                         line+=' '+line_vec[i].substr(0,j+1);
                         line_vec[i]=line_vec[i].substr(j+1);
+                        break;
                     }
-                    else
-                    {
-                        line+=' '+line_vec[i].substr(0,j);
-                        line_vec[i]=line_vec[i].substr(j);
-                    }
-                    break;
                 }
                 buf<<left<<setw(80)<<line<<endl;
                 header1+=buf.str();
@@ -4049,8 +4063,6 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     _citation_journal_id_ASTM.clear();
     _citation_country.clear();
     _citation_journal_id_ISSN.clear();
-    punctuations1.clear();
-    punctuations.clear();
 
     group_PDB.clear();
     type_symbol.clear();
