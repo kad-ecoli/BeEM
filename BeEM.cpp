@@ -16,6 +16,9 @@ const char* docstring=""
 "    -dbref={0,1}     whether to convert dbref record\n"
 "                     0 - (default) do not convert DBREF\n"
 "                     1 - convert DBREF\n"
+"    -gzip={0,1}      whether to perform gzip compression\n"
+"                     0 - (default) do not perform compression\n"
+"                     1 - perform compression if tar and gzip are available\n"
 ;
 
 #include <vector>
@@ -28,6 +31,7 @@ const char* docstring=""
 #include <algorithm>
 #include <iomanip>
 #include <cmath>
+#include <cstdlib>
 using namespace std;
 
 /* StringTools START */
@@ -2589,7 +2593,7 @@ int read_semi_colon(vector<string> &line_vec, const int fields, int l,
 }
 
 int BeEM(const string &infile, string &pdbid, 
-    const int read_seqres, const int read_dbref)
+    const int read_seqres, const int read_dbref, const int do_gzip)
 {
 
     stringstream buf;
@@ -3734,30 +3738,37 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             }
         }
     }
+
+    bool writebundle=(bundleNum>1 || remap_chainID);
     
     bundleNum=0;
     ofstream fout;
     string filename=pdbid+"-chain-id-mapping.txt";
     vector<string>filename_vec;
     map<string,int> filename_app_map;
-    fout.open(filename.c_str());
-    fout<<"    New chain ID            Original chain ID\n";
-    for (i=0;i<chainID_vec.size();i++)
+    if (writebundle)
     {
-        asym_id=chainID_vec[i];
-        if (bundleID_map[asym_id]!=bundleNum)
+        fout.open(filename.c_str());
+        fout<<"    New chain ID            Original chain ID\n";
+        for (i=0;i<chainID_vec.size();i++)
         {
-            bundleNum++;
-            buf<<pdbid<<"-pdb-bundle"<<bundleNum<<".pdb"<<flush;
-            filename=buf.str();
-            buf.str(string());
-            filename_vec.push_back(filename);
-            fout<<'\n'<<Basename(filename)<<":\n";
+            asym_id=chainID_vec[i];
+            if (bundleID_map[asym_id]!=bundleNum)
+            {
+                bundleNum++;
+                buf<<pdbid<<"-pdb-bundle"<<bundleNum<<".pdb"<<flush;
+                filename=buf.str();
+                buf.str(string());
+                filename_vec.push_back(filename);
+                fout<<'\n'<<Basename(filename)<<":\n";
+            }
+            fout<<"           "<<chainID_map[asym_id]
+                <<setw(26)<<right<<asym_id<<'\n';
         }
-        fout<<"           "<<chainID_map[asym_id]<<setw(26)<<right<<asym_id<<'\n';
+        fout<<flush;
+        fout.close();
     }
-    fout<<flush;
-    fout.close();
+    else filename_vec.push_back(pdbid+".pdb");
     filename=pdbid+"-chain-id-mapping.txt";
     filename_vec.push_back(filename);
     filename_app_map[filename]=1;
@@ -4007,7 +4018,7 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
             <<setw(80)<<left<<"END"<<endl;
         fout.close();
     }
-    cout<<filename_vec.back()<<endl;
+    if (writebundle) cout<<filename_vec.back()<<endl;
 
     /* clean up */
     string ().swap(pdbx_keywords);
@@ -4029,7 +4040,6 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     
     map<string,char>().swap(chainID_map);
     map<string,int> ().swap(bundleID_map);
-    vector<string>  ().swap(filename_vec);
     map<string,int> ().swap(filename_app_map);
     map<string,string>().swap(chain_atm_map);
     map<string,string>().swap(chain_lig_map);
@@ -4040,9 +4050,6 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     string ().swap(lig_txt);
     string ().swap(hoh_txt);
 
-    vector<string>().swap(filename_vec);
-    map<string,int>().swap(filename_app_map);
-    
     vector<string>().swap(author_vec);
     vector<string>().swap(citation_author_vec);
     vector<string>().swap(cryst1_vec);
@@ -4094,6 +4101,35 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     map<int,vector<string> > ().swap(seqres_mat);
     vector<string> ().swap(entity2strand);
     map<string,int> ().swap(chain2entity_map);
+    
+    /* compression */
+    if (do_gzip)
+    {
+        if (writebundle)
+        {
+            line="tar -czf "+pdbid+"-pdb-bundle.tar.gz";
+            for (i=0;i<filename_vec.size();i++) line+=" "+filename_vec[i];
+        }
+        else line="gzip -f "+filename_vec[0];
+        i=system(line.c_str());
+        if (writebundle)
+        {
+            line=pdbid+"-pdb-bundle.tar.gz";
+            ifstream fp(line.c_str());
+            if (fp.good())
+            {
+                line="del ";
+#if defined(REDI_PSTREAM_H_SEEN)
+                line="rm ";
+#endif
+                for (i=0;i<filename_vec.size();i++) line+=" "+filename_vec[i];
+                i=system(line.c_str());
+            }
+            fp.close();
+        }
+    }
+    line.clear();
+    vector<string>  ().swap(filename_vec);
     return bundleNum;
 }
 
@@ -4103,6 +4139,7 @@ int main(int argc,char **argv)
     string pdbid  ="";
     int read_seqres=0;
     int read_dbref =0;
+    int do_gzip    =0;
 
     for (int a=1;a<argc;a++)
     {
@@ -4112,6 +4149,8 @@ int main(int argc,char **argv)
             read_seqres=atoi((((string)(argv[a])).substr(8)).c_str());
         else if (StartsWith(argv[a],"-dbref="))
             read_dbref=atoi((((string)(argv[a])).substr(8)).c_str());
+        else if (StartsWith(argv[a],"-gzip="))
+            do_gzip=atoi((((string)(argv[a])).substr(6)).c_str());
         else if (infile.size()==0)
             infile=argv[a];
         else
@@ -4127,7 +4166,7 @@ int main(int argc,char **argv)
         return 1;
     }
 
-    BeEM(infile,pdbid,read_seqres,read_dbref);
+    BeEM(infile,pdbid,read_seqres,read_dbref,do_gzip);
 
     /* clean up */
     string ().swap(infile);
