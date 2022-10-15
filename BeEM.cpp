@@ -3716,11 +3716,69 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         "     "     +scale_mat[1][3]+"                         \n"+
         "SCALE3    "+scale_mat[2][0]+scale_mat[2][1]+scale_mat[2][2]+
         "     "     +scale_mat[2][3]+"                         \n";
+
+    /* parse extra long chain */
+    int atomNum=0;
+    int SplitNum;
+    string key;
+    map<string,map<string,int> > SplitChain_map; // asym_id => (atom key => SplitNum)
+    map<string,map<string,int> > SplitChainRes_map; // asym_id => (res key => SplitNum)
+    map<string,int> SplitChainNum_map; // asym_id => SplitNum
+    string res;
+    for (i=0;i<chainID_vec.size();i++)
+    {
+        asym_id=chainID_vec[i];
+        if (chainAtomNum_map[asym_id]<99999) continue;
+        map<string,int> key_map; // key => SplitNum
+        map<string,int>::iterator it;
+
+        atomNum=0;
+        SplitNum=0;
+        SplitChainNum_map[asym_id]=SplitNum;
+        for (l=0;l<atomLine_vec.size();l++)
+        {
+            if (atomLine_vec[l].second!=asym_id) continue;
+            line=atomLine_vec[l].first;
+            if (line.substr(7,4)!="   1") continue;
+            key=line.substr(12,15);
+            key_map[key]=SplitNum;
+            
+            atomNum++;
+            if (atomNum>=99999)
+            {
+                SplitNum++;
+                SplitChainNum_map[asym_id]=SplitNum;
+                atomNum=0;
+                res=key.substr(10,5);
+                for (it=key_map.begin(); it!=key_map.end(); it++)
+                {
+                    key=it->first;
+                    if (key.substr(10,5)==res)
+                        key_map[key]=SplitNum;
+                }
+            }
+        }
+
+        SplitChain_map[asym_id]=key_map;
+        map<string,int>().swap(key_map);
+        for (it=SplitChain_map[asym_id].begin();
+            it!=SplitChain_map[asym_id].end();it++)
+        {
+            res=(it->first).substr(10,5);
+            SplitNum=it->second;
+            key_map[res]=SplitNum;
+        }
+        SplitChainRes_map[asym_id]=key_map;
+
+        /* clean up */
+        map<string,int>().swap(key_map);
+        res.clear();
+    }
     
     /* parse ATOM HETATM */
     map<string,char> chainID_map;
     map<string,int> bundleID_map;
-    int atomNum=0;
+    atomNum=0;
     int bundleNum=1;
     int chainIdx=0;
     string chainID_list="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -3729,12 +3787,26 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     {
         asym_id=chainID_vec[i];
         chainAtomNum_map[asym_id]++; // for TER
-        if (atomNum && (chainAtomNum_map[asym_id]+atomNum>=99999 
+        if ((chainAtomNum_map[asym_id]+atomNum>=99999 
             || chainIdx>=chainID_list.size()))
         {
             atomNum=0;
-            bundleNum++;
             chainIdx=0;
+            if (SplitChainNum_map.count(asym_id))
+            {
+                if (i) bundleNum++;
+                map<string,int>::iterator it;
+                SplitNum=SplitChainNum_map[asym_id];
+                for (it=SplitChain_map[asym_id].begin(); 
+                    it!=SplitChain_map[asym_id].end(); it++)
+                    atomNum+=(SplitNum==(it->second));
+                chainID_map[asym_id]='A';
+                bundleID_map[asym_id]=bundleNum;
+                bundleNum+=SplitNum;
+                chainIdx++;
+                continue;
+            }
+            bundleNum++;
         }
         atomNum+=chainAtomNum_map[asym_id];
         chainID_map[asym_id]=chainID_list[chainIdx];
@@ -3750,7 +3822,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         {
             asym_id=chainID_vec[i];
             if (bundleID_map[asym_id]!=j) continue;
-            if (asym_id.size()>1)
+            if (asym_id.size()>1 || SplitChain_map.count(asym_id))
             {
                 remap_chainID=true;
                 break;
@@ -3781,6 +3853,22 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         for (i=0;i<chainID_vec.size();i++)
         {
             asym_id=chainID_vec[i];
+            if (SplitChainNum_map.count(asym_id))
+            {
+                SplitNum=SplitChainNum_map[asym_id];
+                for (j=0;j<=SplitNum;j++)
+                {
+                    bundleNum++;
+                    buf<<pdbid<<"-pdb-bundle"<<bundleNum<<".pdb"<<flush;
+                    filename=buf.str();
+                    buf.str(string());
+                    filename_vec.push_back(filename);
+                    fout<<'\n'<<Basename(filename)<<":\n";
+                    fout<<"           "<<chainID_map[asym_id]
+                        <<setw(26)<<right<<asym_id<<'\n';
+                }
+                continue;
+            }
             if (bundleID_map[asym_id]!=bundleNum)
             {
                 bundleNum++;
@@ -3802,7 +3890,6 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     filename_app_map[filename]=1;
     
     bundleNum=0;
-    string key;
     char chainID=' ';
     map<string,string> chain_atm_map;
     map<string,string> chain_lig_map;
@@ -3957,16 +4044,27 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             for (j=0;j<chainID_vec.size();j++)
             {
                 asym_id=chainID_vec[j];
-                if (bundleID_map[asym_id]!=i+1) continue;
-                terNum++;
-                hydrNum+=chainHydrNum_map[asym_id];
+                if (chain_atm_map[asym_id].size()==0 ||
+                   (SplitChainRes_map.count(asym_id)==0 &&
+                    bundleID_map[asym_id]!=i+1)) continue;
+                if (SplitChainRes_map.count(asym_id)==0)
+                {
+                    terNum++;
+                    hydrNum+=chainHydrNum_map[asym_id];
+                }
 
-                if (chain_atm_map[asym_id].size()==0) continue;
                 Split(chain_atm_map[asym_id],lines,'\n',true);
                 for (l=0;l<lines.size();l++)
                 {
                     line=lines[l];
                     if (pdbx_PDB_model_num!=line.substr(7,4)) continue;
+                    if (SplitChainRes_map.count(asym_id))
+                    {
+                        res=line.substr(22,5);
+                        if (SplitChainRes_map[asym_id][res]+
+                            bundleID_map[asym_id]!=i+1)
+                            continue;
+                    }
                     if (StartsWith(line,"ANISOU")) fout<<"ANISOU"
                         <<setw(5)<<right<<atomNum%100000<<line.substr(11)<<'\n';
                     else
@@ -3982,13 +4080,21 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             for (j=0;j<chainID_vec.size();j++)
             {
                 asym_id=chainID_vec[j];
-                if (bundleID_map[asym_id]!=i+1||
-                    chain_lig_map[asym_id].size()==0) continue;
+                if (chain_lig_map[asym_id].size()==0||
+                   (SplitChainRes_map.count(asym_id)==0 &&
+                    bundleID_map[asym_id]!=i+1)) continue;
                 Split(chain_lig_map[asym_id],lines,'\n',true);
                 for (l=0;l<lines.size();l++)
                 {
                     line=lines[l];
                     if (pdbx_PDB_model_num!=line.substr(7,4)) continue;
+                    if (SplitChainRes_map.count(asym_id))
+                    {
+                        res=line.substr(22,5);
+                        if (SplitChainRes_map[asym_id][res]+
+                            bundleID_map[asym_id]!=i+1)
+                            continue;
+                    }
                     if (StartsWith(line,"ANISOU")) fout<<"ANISOU"
                         <<setw(5)<<right<<atomNum%100000<<line.substr(11)<<'\n';
                     else
@@ -4004,13 +4110,21 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             for (j=0;j<chainID_vec.size();j++)
             {
                 asym_id=chainID_vec[j];
-                if (bundleID_map[asym_id]!=i+1 ||
-                    chain_hoh_map[asym_id].size()==0) continue;
+                if (chain_hoh_map[asym_id].size()==0||
+                   (SplitChainRes_map.count(asym_id)==0 &&
+                    bundleID_map[asym_id]!=i+1)) continue;
                 Split(chain_hoh_map[asym_id],lines,'\n',true);
                 for (l=0;l<lines.size();l++)
                 {
                     line=lines[l];
                     if (pdbx_PDB_model_num!=line.substr(7,4)) continue;
+                    if (SplitChainRes_map.count(asym_id))
+                    {
+                        res=line.substr(22,5);
+                        if (SplitChainRes_map[asym_id][res]+
+                            bundleID_map[asym_id]!=i+1)
+                            continue;
+                    }
                     if (StartsWith(line,"ANISOU")) fout<<"ANISOU"
                         <<setw(5)<<right<<atomNum%100000<<line.substr(11)<<'\n';
                     else
