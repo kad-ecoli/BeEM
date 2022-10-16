@@ -27,11 +27,12 @@ const char* docstring=""
 "                     2 - convert all PDB text to upper case\n"
 "    -maxatom=99999   maximum number of atoms in a file. default is 99999.\n"
 "                     no limit on number of atoms if maxatom<=0\n"
-"    -outfmt={0,1,2}  output format\n"
-"                     0 - output a single PDB file if possible; otherwise,\n"
-"                         output Best Effort/Minimal PDB bundle\n"
+"   -outfmt={0,1,2,3} output format\n"
+"                     0 - (default) output a single PDB file if possible;\n"
+"                         otherwise, output Best Effort/Minimal PDB bundle\n"
 "                     1 - always output Best Effort/Minimal PDB bundle\n"
 "                     2 - output one chain per PDB file\n"
+"                     3 - always output a single PDB file\n"
 ;
 
 #include <vector>
@@ -3909,7 +3910,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     for (i=0;i<chainID_vec.size();i++)
     {
         asym_id=chainID_vec[i];
-        if (maxatom<=0 || (maxatom>1 && chainAtomNum_map[asym_id]<maxatom))
+        if (maxatom<=0 || outfmt==3 || (maxatom>1 && chainAtomNum_map[asym_id]<maxatom))
             continue;
         map<string,int> key_map; // key => SplitNum
         map<string,int>::iterator it;
@@ -3973,23 +3974,27 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         if ((maxatom>1 && chainAtomNum_map[asym_id]+atomNum>=maxatom)
             || chainIdx>=chainID_list.size())
         {
-            atomNum=0;
             chainIdx=0;
-            if (SplitChainNum_map.count(asym_id))
+            if (outfmt!=3)
             {
-                if (i) bundleNum++;
-                map<string,int>::iterator it;
-                SplitNum=SplitChainNum_map[asym_id];
-                for (it=SplitChain_map[asym_id].begin(); 
-                    it!=SplitChain_map[asym_id].end(); it++)
-                    atomNum+=(SplitNum==(it->second));
-                chainID_map[asym_id]='A';
-                bundleID_map[asym_id]=bundleNum;
-                bundleNum+=SplitNum;
-                chainIdx++;
-                continue;
+                atomNum=0;
+                if (SplitChainNum_map.count(asym_id))
+                {
+                    if (i) bundleNum++;
+                    map<string,int>::iterator it;
+                    SplitNum=SplitChainNum_map[asym_id];
+                    for (it=SplitChain_map[asym_id].begin(); 
+                        it!=SplitChain_map[asym_id].end(); it++)
+                        atomNum+=(SplitNum==(it->second));
+                    chainID_map[asym_id]='A';
+                    bundleID_map[asym_id]=bundleNum;
+                    bundleNum+=SplitNum;
+                    chainIdx++;
+                    continue;
+
+                }
+                bundleNum++;
             }
-            bundleNum++;
         }
         atomNum+=chainAtomNum_map[asym_id];
         chainID_map[asym_id]=chainID_list[chainIdx];
@@ -4024,6 +4029,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
 
     bool writebundle=(bundleNum>1 || remap_chainID);
     if (outfmt) writebundle=true;
+    if (outfmt==3) writebundle=false;
     
     bundleNum=0;
     ofstream fout;
@@ -4096,6 +4102,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     
     bundleNum=0;
     char chainID=' ';
+    string chainStr="  ";
     map<string,string> chain_atm_map;
     map<string,string> chain_lig_map;
     map<string,string> chain_hoh_map;
@@ -4107,8 +4114,8 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         if (l && (l==atomLine_vec.size() || asym_id!=atomLine_vec[l].second ||
             pdbx_PDB_model_num!=atomLine_vec[l].first.substr(7,4)))
         {
-            buf<<"TER   "<<line.substr(6,5)<<"      "<<line.substr(17,3)<<' '<<chainID
-                <<setw(58)<<left<<line.substr(22,5)<<'\n';
+            buf<<"TER   "<<line.substr(6,5)<<"      "<<line.substr(17,3)
+                <<chainStr<<setw(58)<<left<<line.substr(22,5)<<'\n';
             chain_atm_map[asym_id]+=atm_txt+buf.str();
             buf.str(string());
             atm_txt.clear();
@@ -4119,12 +4126,15 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         pdbx_PDB_model_num=line.substr(7,4);
 
         chainID=chainID_map[asym_id];
-        atm_txt+=line.substr(0,21)+chainID+line.substr(22)+'\n';
+        if (outfmt!=3) chainStr=chainID;
+        else chainStr=asym_id.substr(0,2);
+        if (chainStr.size()<=1) chainStr=" "+chainStr;
+        atm_txt+=line.substr(0,20)+chainStr+line.substr(22)+'\n';
         if (anisou_map.size())
         {
             key=line.substr(12,15)+'\t'+asym_id;
-            if (anisou_map.count(key)) atm_txt+="ANISOU"+line.substr(6,15)+
-                chainID+line.substr(22,6)+anisou_map[key]+line.substr(70)+'\n';
+            if (anisou_map.count(key)) atm_txt+="ANISOU"+line.substr(6,14)+
+                chainStr+line.substr(22,6)+anisou_map[key]+line.substr(70)+'\n';
         }
     }
     vector<pair<string,string> >().swap(atomLine_vec);
@@ -4140,12 +4150,15 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         asym_id=ligLine_vec[l].second;
 
         chainID=chainID_map[asym_id];
-        lig_txt+=line.substr(0,21)+chainID+line.substr(22)+'\n';
+        if (outfmt!=3) chainStr=chainID;
+        else chainStr=asym_id.substr(0,2);
+        if (chainStr.size()<=1) chainStr=" "+chainStr;
+        lig_txt+=line.substr(0,20)+chainStr+line.substr(22)+'\n';
         if (anisou_map.size())
         {
             key=line.substr(12,15)+'\t'+asym_id;
-            if (anisou_map.count(key)) lig_txt+="ANISOU"+line.substr(6,15)+
-                chainID+line.substr(22,6)+anisou_map[key]+line.substr(70)+'\n';
+            if (anisou_map.count(key)) lig_txt+="ANISOU"+line.substr(6,14)+
+                chainStr+line.substr(22,6)+anisou_map[key]+line.substr(70)+'\n';
         }
     }
     vector<pair<string,string> >().swap(ligLine_vec);
@@ -4161,12 +4174,15 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         asym_id=hohLine_vec[l].second;
 
         chainID=chainID_map[asym_id];
+        if (outfmt!=3) chainStr=chainID;
+        else chainStr=asym_id.substr(0,2);
+        if (chainStr.size()<=1) chainStr=" "+chainStr;
         hoh_txt+=line.substr(0,21)+chainID+line.substr(22)+'\n';
         if (anisou_map.size())
         {
             key=line.substr(12,15)+'\t'+asym_id;
-            if (anisou_map.count(key)) hoh_txt+="ANISOU"+line.substr(6,15)+
-                chainID+line.substr(22,6)+anisou_map[key]+line.substr(70)+'\n';
+            if (anisou_map.count(key)) hoh_txt+="ANISOU"+line.substr(6,14)+
+                chainStr+line.substr(22,6)+anisou_map[key]+line.substr(70)+'\n';
         }
     }
     vector<pair<string,string> >().swap(hohLine_vec);
@@ -4243,8 +4259,11 @@ COLUMNS       DATA TYPE     FIELD              DEFINITION
 68            AChar         dbinsEnd           Insertion code of the ending residue of
                                                the segment, if PDB is the reference.
                      */
-                buf<<"DBREF  "<<right<<setw(4)<<dbref_vec[0]<<' '
-                   <<chainID_map[asym_id]<<' '
+                if (outfmt!=3) chainStr=chainID;
+                else chainStr=asym_id.substr(0,2);
+                if (chainStr.size()<=1) chainStr=" "+chainStr;
+                buf<<"DBREF  "<<right<<setw(4)<<dbref_vec[0]
+                   <<setw(2)<<chainStr<<' '
                    <<setw(4)<<dbref_vec[2]<<dbref_vec[3]<<' '
                    <<setw(4)<<dbref_vec[4]<<dbref_vec[5]<<' '
                    <<setw(6)<<left<<dbref_vec[6]<<' '
@@ -4269,14 +4288,17 @@ COLUMNS       DATA TYPE     FIELD              DEFINITION
 
                 seqresCount=0;
                 chainID=chainID_map[asym_id];
+                if (outfmt!=3) chainStr=chainID;
+                else chainStr=asym_id.substr(0,2);
+                if (chainStr.size()<=1) chainStr=" "+chainStr;
                 seqresWrap=0;
                 for (m=0;m<seqres_mat[entity].size();m++)
                 {
                     if (seqresWrap==0)
                     {
                         seqresCount++;
-                        buf<<"SEQRES"<<right<<setw(4)<<seqresCount<<' '<<chainID
-                            <<setw(5)<<seqres_mat[entity].size()<<" ";
+                        buf<<"SEQRES"<<right<<setw(4)<<seqresCount<<setw(2)
+                            <<chainStr<<setw(5)<<seqres_mat[entity].size()<<" ";
                     }
                     buf<<" "<<seqres_mat[entity][m];
                     seqresWrap++;
