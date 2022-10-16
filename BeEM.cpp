@@ -3600,6 +3600,13 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     }
     lines.clear();
 
+    if (pdbid.size()==0)
+    {
+        cerr<<"ERROR: no PDB ID in "<<infile<<'\n'
+            <<"PDB ID can be specified by option -p=xxxx"<<endl;
+        return -1;
+    }
+
 
     string header1;
     string header2;
@@ -4531,6 +4538,14 @@ int main(int argc,char **argv)
             do_gzip=atoi((((string)(argv[a])).substr(6)).c_str());
         else if (StartsWith(argv[a],"-upper="))
             do_upper=atoi((((string)(argv[a])).substr(7)).c_str());
+        else if ((string)(argv[a])=="-seqres")
+            read_seqres=1;
+        else if ((string)(argv[a])=="-dbref")
+            read_dbref=1;
+        else if ((string)(argv[a])=="-gzip")
+            do_gzip=1;
+        else if ((string)(argv[a])=="-upper=")
+            do_upper=2;
         else if (infile.size()==0)
             infile=argv[a];
         else

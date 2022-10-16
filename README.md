@@ -24,8 +24,8 @@ On Linux, Mac and Windows Subsystem for Linux, BeEM read input files with and wi
 ## Limitations ##
 Best effort/minimal PDB format files contain only authorship, citation details and coordinate data under HEADER, AUTHOR, JRNL, CRYST1, SCALEn, ATOM, HETATM records.
 
-The following PDB records are not included in the official implementation of best effort/minimal files: OBSLTE, TITLE, CAVEAT, COMPND, SOURCE, KEYWDS, EXPDTA, REVDAT, SPRSDE, REMARKS, DBREF, SEQADV, SEQRES, MODRES, HET, HETNAM, HETSYN, FORMUL, HELIX, SHEET, SSBOND, LINK, CISPEP, SITE, ORIGXn, MTRIXn, CONECT.
+The following PDB records are not included: OBSLTE, TITLE, CAVEAT, COMPND, SOURCE, KEYWDS, EXPDTA, REVDAT, SPRSDE, REMARKS, DBREF, SEQADV, SEQRES, MODRES, HET, HETNAM, HETSYN, FORMUL, HELIX, SHEET, SSBOND, LINK, CISPEP, SITE, ORIGXn, MTRIXn, CONECT.
 
-BeEM may include SEQRES and DBREF.
+BeEM may optionally include SEQRES and DBREF.
 
 For extended length CCD names (i.e., residue names with 5 characters), only the first three characters are kept. For residue sequence number with 5 or more characters, the first four characters occupies usual location for the residue sequence number, the fifth character will occupy the position of the insertion code, while the remaining charaters are discarded. A single [chain with >99999 atoms](https://www.rcsb.org/structure/4V5X) are splitted into multiple Best Effort/Minimal files.
