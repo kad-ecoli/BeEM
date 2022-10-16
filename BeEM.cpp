@@ -25,6 +25,8 @@ const char* docstring=""
 "                         file to upper case; allow lower case header for\n"
 "                         Best Effort/Minimal PDB bundle\n"
 "                     2 - convert all PDB text to upper case\n"
+"    -maxatom=99999   maximum number of atoms in a file. default is 99999.\n"
+"                     no limit on number of atoms if maxatom<=0\n"
 ;
 
 #include <vector>
@@ -2599,7 +2601,8 @@ int read_semi_colon(vector<string> &line_vec, const int fields, int l,
 }
 
 int BeEM(const string &infile, string &pdbid, const int read_seqres,
-    const int read_dbref, const int do_gzip, const int do_upper)
+    const int read_dbref, const int do_gzip, const int do_upper,
+    const long int maxatom)
 {
 
     stringstream buf;
@@ -3901,7 +3904,8 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     for (i=0;i<chainID_vec.size();i++)
     {
         asym_id=chainID_vec[i];
-        if (chainAtomNum_map[asym_id]<99999) continue;
+        if (maxatom<=0 || (maxatom>1 && chainAtomNum_map[asym_id]<maxatom))
+            continue;
         map<string,int> key_map; // key => SplitNum
         map<string,int>::iterator it;
 
@@ -3917,7 +3921,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             key_map[key]=SplitNum;
             
             atomNum++;
-            if (atomNum>=99999)
+            if (maxatom>1 && atomNum>=maxatom)
             {
                 SplitNum++;
                 SplitChainNum_map[asym_id]=SplitNum;
@@ -3960,8 +3964,8 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     {
         asym_id=chainID_vec[i];
         chainAtomNum_map[asym_id]++; // for TER
-        if ((chainAtomNum_map[asym_id]+atomNum>=99999 
-            || chainIdx>=chainID_list.size()))
+        if ((maxatom>1 && chainAtomNum_map[asym_id]+atomNum>=maxatom)
+            || chainIdx>=chainID_list.size())
         {
             atomNum=0;
             chainIdx=0;
@@ -4525,6 +4529,7 @@ int main(int argc,char **argv)
     int read_dbref =0;
     int do_gzip    =0;
     int do_upper   =1;
+    long int maxatom=99999;
 
     for (int a=1;a<argc;a++)
     {
@@ -4538,14 +4543,18 @@ int main(int argc,char **argv)
             do_gzip=atoi((((string)(argv[a])).substr(6)).c_str());
         else if (StartsWith(argv[a],"-upper="))
             do_upper=atoi((((string)(argv[a])).substr(7)).c_str());
+        else if (StartsWith(argv[a],"-maxatom="))
+            maxatom=atol((((string)(argv[a])).substr(9)).c_str());
         else if ((string)(argv[a])=="-seqres")
             read_seqres=1;
         else if ((string)(argv[a])=="-dbref")
             read_dbref=1;
         else if ((string)(argv[a])=="-gzip")
             do_gzip=1;
-        else if ((string)(argv[a])=="-upper=")
+        else if ((string)(argv[a])=="-upper")
             do_upper=2;
+        else if ((string)(argv[a])=="-maxatom")
+            maxatom=0;
         else if (infile.size()==0)
             infile=argv[a];
         else
@@ -4561,7 +4570,7 @@ int main(int argc,char **argv)
         return 1;
     }
 
-    BeEM(infile,pdbid,read_seqres,read_dbref,do_gzip,do_upper);
+    BeEM(infile,pdbid,read_seqres,read_dbref,do_gzip,do_upper,maxatom);
 
     /* clean up */
     string ().swap(infile);
