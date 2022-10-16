@@ -27,6 +27,11 @@ const char* docstring=""
 "                     2 - convert all PDB text to upper case\n"
 "    -maxatom=99999   maximum number of atoms in a file. default is 99999.\n"
 "                     no limit on number of atoms if maxatom<=0\n"
+"    -outfmt={0,1,2}  output format\n"
+"                     0 - output a single PDB file if possible; otherwise,\n"
+"                         output Best Effort/Minimal PDB bundle\n"
+"                     1 - always output Best Effort/Minimal PDB bundle\n"
+"                     2 - output one chain per PDB file\n"
 ;
 
 #include <vector>
@@ -2602,7 +2607,7 @@ int read_semi_colon(vector<string> &line_vec, const int fields, int l,
 
 int BeEM(const string &infile, string &pdbid, const int read_seqres,
     const int read_dbref, const int do_gzip, const int do_upper,
-    const long int maxatom)
+    const long int maxatom, const int outfmt)
 {
 
     stringstream buf;
@@ -3960,6 +3965,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     int chainIdx=0;
     string chainID_list="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                         "abcdefghijklmnopqrstuvwxyz0123456789";
+    if (outfmt==2) chainID_list=" ";
     for (i=0;i<chainID_vec.size();i++)
     {
         asym_id=chainID_vec[i];
@@ -4017,13 +4023,14 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     }
 
     bool writebundle=(bundleNum>1 || remap_chainID);
+    if (outfmt) writebundle=true;
     
     bundleNum=0;
     ofstream fout;
     string filename=pdbid+"-chain-id-mapping.txt";
     vector<string>filename_vec;
     map<string,int> filename_app_map;
-    if (writebundle)
+    if (writebundle && outfmt<=1)
     {
         fout.open(filename.c_str());
         fout<<"    New chain ID            Original chain ID\n";
@@ -4060,6 +4067,27 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         }
         fout<<flush;
         fout.close();
+    }
+    else if (outfmt==2)
+    {
+        for (i=0;i<chainID_vec.size();i++)
+        {
+            asym_id=chainID_vec[i];
+            filename=pdbid+chainID_vec[i]+".pdb";
+            filename_vec.push_back(filename);
+            if (SplitChainNum_map.count(asym_id))
+            {
+                SplitNum=SplitChainNum_map[asym_id];
+                for (j=1;j<=SplitNum;j++)
+                {
+                    bundleNum++;
+                    buf<<pdbid<<asym_id<<"-"<<j<<".pdb"<<flush;
+                    filename=buf.str();
+                    buf.str(string());
+                    filename_vec.push_back(filename);
+                }
+            }
+        }
     }
     else filename_vec.push_back(pdbid+".pdb");
     filename=pdbid+"-chain-id-mapping.txt";
@@ -4394,7 +4422,7 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
             <<setw(80)<<left<<"END"<<endl;
         fout.close();
     }
-    if (writebundle) cout<<filename_vec.back()<<endl;
+    if (writebundle && outfmt<=1) cout<<filename_vec.back()<<endl;
 
     /* clean up */
     string ().swap(pdbx_keywords);
@@ -4493,27 +4521,38 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     /* compression */
     if (do_gzip)
     {
-        if (writebundle)
+        if (outfmt==2)
         {
-            line="tar -czf "+pdbid+"-pdb-bundle.tar.gz";
-            for (i=0;i<filename_vec.size();i++) line+=" "+filename_vec[i];
-        }
-        else line="gzip -f "+filename_vec[0];
-        i=system(line.c_str());
-        if (writebundle)
-        {
-            line=pdbid+"-pdb-bundle.tar.gz";
-            ifstream fp(line.c_str());
-            if (fp.good())
+            for (i=0;i<filename_vec.size()-1;i++)
             {
-                line="del ";
-#if defined(REDI_PSTREAM_H_SEEN)
-                line="rm ";
-#endif
-                for (i=0;i<filename_vec.size();i++) line+=" "+filename_vec[i];
-                i=system(line.c_str());
+                line="gzip -f "+filename_vec[i];
+                j=system(line.c_str());
             }
-            fp.close();
+        }
+        else
+        {
+            if (writebundle)
+            {
+                line="tar -czf "+pdbid+"-pdb-bundle.tar.gz";
+                for (i=0;i<filename_vec.size();i++) line+=" "+filename_vec[i];
+            }
+            else line="gzip -f "+filename_vec[0];
+            i=system(line.c_str());
+            if (writebundle)
+            {
+                line=pdbid+"-pdb-bundle.tar.gz";
+                ifstream fp(line.c_str());
+                if (fp.good())
+                {
+                    line="del ";
+#if defined(REDI_PSTREAM_H_SEEN)
+                    line="rm ";
+#endif
+                    for (i=0;i<filename_vec.size();i++) line+=" "+filename_vec[i];
+                    i=system(line.c_str());
+                }
+                fp.close();
+            }
         }
     }
     line.clear();
@@ -4530,6 +4569,7 @@ int main(int argc,char **argv)
     int do_gzip    =0;
     int do_upper   =1;
     long int maxatom=99999;
+    int outfmt     =0;
 
     for (int a=1;a<argc;a++)
     {
@@ -4545,6 +4585,8 @@ int main(int argc,char **argv)
             do_upper=atoi((((string)(argv[a])).substr(7)).c_str());
         else if (StartsWith(argv[a],"-maxatom="))
             maxatom=atol((((string)(argv[a])).substr(9)).c_str());
+        else if (StartsWith(argv[a],"-outfmt="))
+            outfmt=atol((((string)(argv[a])).substr(8)).c_str());
         else if ((string)(argv[a])=="-seqres")
             read_seqres=1;
         else if ((string)(argv[a])=="-dbref")
@@ -4555,6 +4597,8 @@ int main(int argc,char **argv)
             do_upper=2;
         else if ((string)(argv[a])=="-maxatom")
             maxatom=0;
+        else if ((string)(argv[a])=="-outfmt")
+            outfmt=1;
         else if (infile.size()==0)
             infile=argv[a];
         else
@@ -4570,7 +4614,7 @@ int main(int argc,char **argv)
         return 1;
     }
 
-    BeEM(infile,pdbid,read_seqres,read_dbref,do_gzip,do_upper,maxatom);
+    BeEM(infile,pdbid,read_seqres,read_dbref,do_gzip,do_upper,maxatom,outfmt);
 
     /* clean up */
     string ().swap(infile);
