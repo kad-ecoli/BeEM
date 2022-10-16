@@ -27,12 +27,13 @@ const char* docstring=""
 "                     2 - convert all PDB text to upper case\n"
 "    -maxatom=99999   maximum number of atoms in a file. default is 99999.\n"
 "                     no limit on number of atoms if maxatom<=0\n"
-"   -outfmt={0,1,2,3} output format\n"
+" -outfmt={0,1,2,3,4} output format\n"
 "                     0 - (default) output a single PDB file if possible;\n"
 "                         otherwise, output Best Effort/Minimal PDB bundle\n"
 "                     1 - always output Best Effort/Minimal PDB bundle\n"
 "                     2 - output one chain per PDB file\n"
 "                     3 - always output a single PDB file\n"
+"                     4 - output FASTA sequence converted from coordinate\n"
 ;
 
 #include <vector>
@@ -4582,6 +4583,340 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     return bundleNum;
 }
 
+inline char aa3to1(const string resn)
+{
+    if (resn[0]==' ') return tolower(resn[2]);
+    else if (resn=="PSU") return 'u';
+
+    // 20 standard amino acid + MSE
+    else if (resn=="ALA") return 'A';
+    else if (resn=="CYS") return 'C';
+    else if (resn=="ASP") return 'D';
+    else if (resn=="GLU") return 'E';
+    else if (resn=="PHE") return 'F';
+    else if (resn=="GLY") return 'G';
+    else if (resn=="HIS") return 'H';
+    else if (resn=="ILE") return 'I';
+    else if (resn=="LYS") return 'K';
+    else if (resn=="LEU") return 'L';
+    else if (resn=="MET") return 'M';
+    else if (resn=="ASN") return 'N';
+    else if (resn=="PRO") return 'P';
+    else if (resn=="GLN") return 'Q';
+    else if (resn=="ARG") return 'R';
+    else if (resn=="SER") return 'S';
+    else if (resn=="THR") return 'T';
+    else if (resn=="VAL") return 'V'; 
+    else if (resn=="TRP") return 'W';
+    else if (resn=="TYR") return 'Y';
+
+    if (resn=="MSE") return 'M';
+
+    // non-standard amino acid with known parent
+    if (resn=="CHG"||resn=="HAC"||resn=="AYA"||resn=="TIH"||resn=="BNN"||
+        resn=="ALM"||resn=="TPQ"||resn=="MAA"||resn=="PRR"||resn=="FLA"||
+        resn=="AIB"||resn=="DAL"||resn=="CSD"||resn=="DHA"||resn=="DNP") 
+        return 'A';
+    else if (resn=="PR3"||resn=="CCS"||resn=="C6C"||resn=="SMC"||resn=="BCS"||
+             resn=="SCY"||resn=="DCY"||resn=="SCS"||resn=="CME"||resn=="CY1"||
+             resn=="CYQ"||resn=="CEA"||resn=="CYG"||resn=="BUC"||resn=="PEC"||
+             resn=="CYM"||resn=="CY3"||resn=="CSO"||resn=="SOC"||resn=="CSX"||
+             resn=="CSW"||resn=="EFC"||resn=="CSP"||resn=="CSS"||resn=="SCH"||
+             resn=="OCS"||resn=="SHC"||resn=="C5C") return 'C';
+    else if (resn=="DGL"||resn=="GGL"||resn=="CGU"||resn=="GMA"||resn=="5HP"||
+             resn=="PCA") return 'E';
+    else if (resn=="ASQ"||resn=="ASB"||resn=="ASA"||resn=="ASK"||resn=="ASL"||
+             resn=="2AS"||resn=="DAS"||resn=="DSP"||resn=="BHD") return 'D';
+    else if (resn=="PHI"||resn=="PHL"||resn=="DPN"||resn=="DAH"||resn=="HPQ")
+        return 'F';
+    else if (resn=="GLZ"||resn=="SAR"||resn=="GSC"||resn=="GL3"||resn=="MSA"||
+             resn=="MPQ"||resn=="NMC") return 'G';
+    else if (resn=="NEM"||resn=="NEP"||resn=="HSD"||resn=="HSP"||resn=="MHS"||
+             resn=="3AH"||resn=="HIC"||resn=="HIP"||resn=="DHI"||resn=="HSE") 
+        return 'H';
+    else if (resn=="IIL"||resn=="DIL") return 'I';
+    else if (resn=="DLY"||resn=="LYZ"||resn=="SHR"||resn=="ALY"||resn=="TRG"||
+             resn=="LYM"||resn=="LLY"||resn=="KCX") return 'K';
+    else if (resn=="NLE"||resn=="CLE"||resn=="NLP"||resn=="DLE"||resn=="BUG"||
+             resn=="NLN"||resn=="MLE") return 'L';
+    else if (resn=="FME"||resn=="CXM"||resn=="OMT") return 'M';
+    else if (resn=="MEN") return 'N';
+    else if (resn=="DPR"||resn=="HYP") return 'P';
+    else if (resn=="DGN") return 'Q';
+    else if (resn=="AGM"||resn=="ACL"||resn=="DAR"||resn=="HAR"||resn=="HMR"||
+             resn=="ARM") return 'R';
+    else if (resn=="OAS"||resn=="MIS"||resn=="SAC"||resn=="SEL"||resn=="SVA"||
+             resn=="SET"||resn=="DSN"||resn=="SEP") return 'S';
+    else if (resn=="DTH"||resn=="TPO"||resn=="ALO"||resn=="BMT") return 'T';
+    else if (resn=="DVA"||resn=="MVA"||resn=="DIV") return 'V';
+    else if (resn=="LTR"||resn=="DTR"||resn=="TRO"||resn=="TPL"||resn=="HTR") 
+        return 'W';
+    else if (resn=="PAQ"||resn=="STY"||resn=="TYQ"||resn=="IYR"||resn=="TYY"||
+             resn=="DTY"||resn=="TYB"||resn=="PTR"||resn=="TYS") return 'Y';
+    
+    // undeterminted amino acid
+    else if (resn=="ASX") return 'B'; // or D or N
+    else if (resn=="GLX") return 'Z'; // or Q or E
+    else if (resn=="SEC") return 'U';
+    else if (resn=="PYL") return 'O';
+    return 'X';
+}
+
+int cif2fasta(const string &infile, string &pdbid, const int do_upper,
+    const int do_gzip)
+{
+
+    stringstream buf;
+    if (infile=="-") buf<<cin.rdbuf();
+#if defined(REDI_PSTREAM_H_SEEN)
+    else if (EndsWith(infile,".gz"))
+    {
+        redi::ipstream fp_gz; // if file is compressed
+        fp_gz.open("gunzip -c "+infile);
+        buf<<fp_gz.rdbuf();
+        fp_gz.close();
+    }
+#endif
+    else
+    {
+        ifstream fp;
+        fp.open(infile.c_str(),ios::in); //ifstream fp(filename,ios::in);
+        buf<<fp.rdbuf();
+        fp.close();
+    }
+    vector<string> lines;
+    Split(buf.str(),lines,'\n',true); 
+    buf.str(string());
+    if (lines.size()<=1)
+    {
+        cerr<<"ERROR! Empty structure "<<infile<<endl;
+        vector<string>().swap(lines);
+        return 0;
+    }
+
+    /* parse ATOM/HETATM */
+    map<string,int> _atom_site;
+    string comp_id    ="UNK";   // auth_comp_id, label_comp_id (residue name)
+    string asym_prev  ="";
+    string asym_id    =" ";     // auth_asym_id, label_asym_id (chain ID)
+    string seq_id     ="";      // label_seq_id, auth_seq_id (residue index)
+    string seq_prev   ="";
+    string pdbx_PDB_ins_code="";// (insertion code)
+    string pdbx_PDB_model_num="1"; // model index
+
+    string sequence="";
+    vector<string> chainID_vec;
+    vector<string> sequence_vec;
+    vector<size_t> mol_type_vec(3,0); // protein, dna, rna
+    vector<vector<size_t> >mol_type_mat;
+    
+    size_t l;
+    int i,j;
+    string line;
+    vector<string> line_vec;
+    for (l=0;l<lines.size();l++)
+    {
+        line=lines[l];
+        Split(line,line_vec,' ',true);
+        if (line_vec.size()==0) continue;
+        else if (line_vec.size() && line_vec[0]=="#")
+            _atom_site.clear();
+        else if (pdbid.size()==0 && l==0 && StartsWith(line,"data_"))
+            pdbid=Lower(line.substr(5));
+        else if (pdbid.size()==0 && line_vec.size()>1 && line_vec[0]=="_entry.id")
+            pdbid=Lower(line_vec[1]);
+        else if (StartsWith(line,"_atom_site."))
+        {
+            line=line_vec[0];
+            for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+            Split(line,line_vec,'.');
+            if (line_vec.size()>1)
+            {
+                line=line_vec[1];
+                j=_atom_site.size();
+                _atom_site[line]=j;
+            }
+        }
+        else if (_atom_site.size())
+        {
+            if (_atom_site.count("pdbx_PDB_model_num"))
+            {
+                pdbx_PDB_model_num=line_vec[_atom_site["pdbx_PDB_model_num"]];
+                if (pdbx_PDB_model_num!="." &&
+                    pdbx_PDB_model_num=="?" && pdbx_PDB_model_num!="1")
+                {
+                    for (i=0;i<line_vec.size();i++) line_vec[i].clear();
+                    line_vec.clear();
+                    continue;
+                }
+            }
+            if (_atom_site.count("label_seq_id") && 
+                line_vec[_atom_site["label_seq_id"]]==".")
+            {                
+                for (i=0;i<line_vec.size();i++) line_vec[i].clear();
+                line_vec.clear();
+                continue;
+            }
+            
+            if (_atom_site.count("auth_asym_id"))
+                asym_id=line_vec[_atom_site["auth_asym_id"]];
+            else if (_atom_site.count("label_asym_id"))
+                asym_id=line_vec[_atom_site["label_asym_id"]];
+            else if (_atom_site.count("pdbx_auth_asym_id"))
+                asym_id=line_vec[_atom_site["pdbx_auth_asym_id"]];
+            else if (_atom_site.count("pdbx_label_asym_id"))
+                asym_id=line_vec[_atom_site["pdbx_label_asym_id"]];
+            if (asym_id=="." || asym_id=="?") asym_id="_";
+
+            if (_atom_site.count("auth_seq_id"))
+                seq_id=line_vec[_atom_site["auth_seq_id"]];
+            else if (_atom_site.count("label_seq_id"))
+                seq_id=line_vec[_atom_site["label_seq_id"]];
+            else if (_atom_site.count("pdbx_auth_seq_id"))
+                seq_id=line_vec[_atom_site["pdbx_auth_seq_id"]];
+            else if (_atom_site.count("pdbx_label_seq_id"))
+                seq_id=line_vec[_atom_site["pdbx_label_seq_id"]];
+
+            if (_atom_site.count("pdbx_PDB_ins_code"))
+            {
+                pdbx_PDB_ins_code=line_vec[_atom_site["pdbx_PDB_ins_code"]];
+                if (pdbx_PDB_ins_code!="." && pdbx_PDB_ins_code!="?")
+                    seq_id+=pdbx_PDB_ins_code;
+            }
+
+            if (asym_prev==asym_id && seq_prev==seq_id)
+            {
+                for (i=0;i<line_vec.size();i++) line_vec[i].clear();
+                line_vec.clear();
+                continue;
+            }
+            
+            if (_atom_site.count("auth_comp_id"))
+            {
+                comp_id=line_vec[_atom_site["auth_comp_id"]];
+                if (comp_id.size()>3 && _atom_site.count("label_comp_id"))
+                    comp_id=line_vec[_atom_site["label_comp_id"]];
+            }
+            else if (_atom_site.count("label_comp_id"))
+                comp_id=line_vec[_atom_site["label_comp_id"]];
+            else if (_atom_site.count("pdbx_auth_comp_id"))
+            {
+                comp_id=line_vec[_atom_site["pdbx_auth_comp_id"]];
+                if (comp_id.size()>3 && _atom_site.count("pdbx_label_comp_id"))
+                    comp_id=line_vec[_atom_site["pdbx_label_comp_id"]];
+            }
+            else if (_atom_site.count("pdbx_label_comp_id"))
+                comp_id=line_vec[_atom_site["pdbx_label_comp_id"]];
+            while (comp_id.size()<3) comp_id=' '+comp_id;
+
+            if (asym_prev!=asym_id)
+            {
+                if (asym_prev.size())
+                {
+                    chainID_vec.push_back(asym_prev);
+                    sequence_vec.push_back(sequence);
+                    mol_type_mat.push_back(mol_type_vec);
+                    mol_type_vec[0]=mol_type_vec[1]=mol_type_vec[2]=0;
+                    sequence="";
+                }
+
+                asym_prev=asym_id;
+            }
+            sequence+=aa3to1(comp_id);
+            if (sequence[sequence.size()-1]!='X')
+            {
+                if      (comp_id.substr(0,2)==" D") mol_type_vec[1]++;
+                else if (comp_id.substr(0,2)=="  ") mol_type_vec[2]++;
+                else mol_type_vec[0]++;
+            }
+            seq_prev=seq_id;
+        }
+
+        /* clean up */
+        for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+        lines[l].clear();
+    }
+    lines.clear();
+    if (sequence.size())
+    {
+        chainID_vec.push_back(asym_prev);
+        sequence_vec.push_back(sequence);
+        mol_type_mat.push_back(mol_type_vec);
+    }
+
+    if (pdbid.size()==0)
+    {
+        cerr<<"ERROR: no PDB ID in "<<infile<<'\n'
+            <<"PDB ID can be specified by option -p=xxxx"<<endl;
+        return -1;
+    }
+
+    size_t seqNum=chainID_vec.size();
+    for (l=0;l<seqNum;l++)
+    {
+        buf<<'>'<<pdbid<<':'<<chainID_vec[l]<<'\t';
+        if (mol_type_mat[l][0]>=mol_type_mat[l][1] && 
+            mol_type_mat[l][1]>=mol_type_mat[l][2])
+        {
+            sequence=sequence_vec[l];
+            if (do_upper==2) sequence=Upper(sequence);
+            else if (do_upper==0) sequence=Lower(sequence);
+            buf<<"PROTEIN\t"<<sequence.size()<<'\n'<<sequence<<'\n';
+        }
+        else
+        {
+            sequence="";
+            for (j=0;j<sequence_vec[l].size();j++)
+            {
+                if (sequence_vec[l][j]=='X') sequence+='n';
+                else sequence+=sequence_vec[l][j];
+            }
+            if (do_upper==2) sequence=Upper(sequence);
+            else if (do_upper==0) sequence=Lower(sequence);
+            if (mol_type_mat[l][1]>=mol_type_mat[l][2])
+                 buf<<"DNA\t"<<sequence.size()<<'\n'<<sequence<<'\n';
+            else buf<<"RNA\t"<<sequence.size()<<'\n'<<sequence<<'\n';
+        }
+    }
+    buf<<flush;
+    
+    ofstream fout;
+    string filename=pdbid+".fasta";
+    fout.open(filename.c_str());
+    fout<<buf.str()<<flush;
+    buf.str(string());
+    fout.close();
+    cout<<filename<<endl;
+    
+    if (do_gzip)
+    {
+        line="gzip -f "+filename;
+        j=system(line.c_str());
+    }
+
+    /* clean up */
+    map<string,int> ().swap(_atom_site);
+    string ().swap(filename);
+    
+    vector<string>().swap(chainID_vec);
+    vector<string>().swap(sequence_vec);
+    vector<size_t>().swap(mol_type_vec);
+    vector<vector<size_t> >().swap(mol_type_mat);
+
+    vector<string>().swap(lines);
+    vector<string>().swap(line_vec);
+    
+    comp_id.clear();
+    asym_prev.clear();
+    asym_id.clear();
+    seq_prev.clear();
+    seq_id.clear();
+    pdbx_PDB_ins_code.clear();
+    pdbx_PDB_model_num.clear();
+    line.clear();
+    return seqNum;
+}
+
 int main(int argc,char **argv)
 {
     string infile ="";
@@ -4636,7 +4971,10 @@ int main(int argc,char **argv)
         return 1;
     }
 
-    BeEM(infile,pdbid,read_seqres,read_dbref,do_gzip,do_upper,maxatom,outfmt);
+    if (outfmt==4)
+        cif2fasta(infile,pdbid,do_upper,do_gzip);
+    else BeEM(infile,pdbid,read_seqres,read_dbref,do_gzip,do_upper,maxatom,
+        outfmt);
 
     /* clean up */
     string ().swap(infile);
