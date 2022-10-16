@@ -2649,6 +2649,8 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
     map<string,int> _pdbx_audit_revision_history;
     map<string,int> _entity_poly_seq;
     map<string,int> _entity_poly;
+    map<string,int> _struct_ref;
+    map<string,int> _struct_ref_seq;
     string _citation_title="";
     string _citation_pdbx_database_id_PubMed="";
     string _citation_pdbx_database_id_DOI="";
@@ -2698,6 +2700,29 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
     vector<string> seqres_vec;
     map<int,vector<string> > seqres_mat;
     vector<string> entity2strand;
+    
+    map<string,string> accession2db_name;
+    map<string,string> accession2db_code;
+    vector<vector<string> > dbref_mat;
+    vector<string> dbref_vec(13,""); // pdbx_PDB_id_code, pdbx_strand_id,
+    // seq_align_beg, pdbx_seq_align_beg_ins_code
+    // seq_align_beg, pdbx_seq_align_end_ins_code
+    // db_name, pdbx_db_accession, db_code
+    // db_align_beg, pdbx_db_align_beg_ins_code
+    // db_align_end, pdbx_db_align_end_ins_code
+    dbref_vec[3]=dbref_vec[5]=dbref_vec[10]=dbref_vec[12]=" ";
+    string db_code;
+    string db_name;
+    //string pdbx_PDB_id_code;
+    string pdbx_db_accession;
+    //string seq_align_beg;
+    //string seq_align_end;
+    //string pdbx_seq_align_beg_ins_code=" ";
+    //string pdbx_seq_align_end_ins_code=" ";
+    //string db_align_beg;
+    //string db_align_end;
+    //string pdbx_db_align_beg_ins_code=" ";
+    //string pdbx_db_align_end_ins_code=" ";
 
     size_t l;
     int i,j;
@@ -2728,7 +2753,7 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
                     for (i=0;i<seqres_vec.size();i++) seqres_vec[i].clear();
                     seqres_vec.clear();
                 }
-                else if (pdbx_strand_id.size())
+                else if (read_seqres && pdbx_strand_id.size())
                 {
                     i=atoi(entity_id.c_str());
                     while (entity2strand.size()<=i) entity2strand.push_back("");
@@ -2737,6 +2762,26 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
                 entity_id.clear();
             }
             pdbx_strand_id.clear();
+            
+            if (pdbx_db_accession.size())
+            {
+                if (db_name.size()) accession2db_name[pdbx_db_accession]=db_name;
+                if (db_code.size()) accession2db_code[pdbx_db_accession]=db_code;
+                pdbx_db_accession.clear();
+            }
+            db_name.clear();
+            db_code.clear();
+
+            if (read_dbref && dbref_vec[1].size() && dbref_vec[7].size())
+            {
+                if (dbref_vec[0].size()==0) dbref_vec[0]=Upper(pdbid);
+                for (i=0;i<dbref_vec.size();i++)
+                    if (dbref_vec[i]=="?" || dbref_vec[i]==".") dbref_vec[i]=" ";
+                dbref_mat.push_back(dbref_vec);
+                for (i=0;i<dbref_vec.size();i++) dbref_vec[i]="";
+                dbref_vec[3]=dbref_vec[5]=dbref_vec[10]=dbref_vec[12]=" ";
+            }
+
             _audit_author.clear();
             _citation_author.clear();
             _citation.clear();
@@ -2749,6 +2794,8 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
             _pdbx_audit_revision_history.clear();
             _entity_poly_seq.clear();
             _entity_poly.clear();
+            _struct_ref.clear();
+            _struct_ref_seq.clear();
             loop_=false;
         }
         else if (line_vec.size()==1 && line_vec[0]=="loop_")
@@ -2804,6 +2851,125 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
             recvd_initial_deposition_date=line_vec[
                 _pdbx_database_status["recvd_initial_deposition_date"]];
         }
+        else if (read_dbref && StartsWith(line,"_struct_ref."))
+        {
+            if (loop_)
+            {
+                j=_struct_ref.size();
+                line=line_vec[0];
+                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                Split(line,line_vec,'.');
+                if (line_vec.size()>1)
+                {
+                    line=line_vec[1];
+                    _struct_ref[line]=j;
+                }
+            }
+            else
+            {
+                l=read_semi_colon(line_vec, 2, l, lines, line_append_vec, line);
+                if (line_vec[0]=="_struct_ref.db_name")
+                    db_name=line_vec[1];
+                else if (line_vec[0]=="_struct_ref.db_code")
+                    db_code=line_vec[1];
+                else if (line_vec[0]=="_struct_ref.pdbx_db_accession")
+                    pdbx_db_accession=line_vec[1];
+            }
+        }
+        else if (read_dbref && _struct_ref.count("pdbx_db_accession"))
+        {
+            l=read_semi_colon(line_vec, _struct_ref.size(),
+                l, lines, line_append_vec, line);
+            pdbx_db_accession=line_vec[_struct_ref["pdbx_db_accession"]];
+            if (_struct_ref.count("db_name")) accession2db_name[
+                pdbx_db_accession]=line_vec[_struct_ref["db_name"]];
+            if (_struct_ref.count("db_code")) accession2db_code[
+                pdbx_db_accession]=line_vec[_struct_ref["db_code"]];
+        }
+        else if (read_dbref && StartsWith(line,"_struct_ref_seq."))
+        {
+            if (loop_)
+            {
+                j=_struct_ref_seq.size();
+                line=line_vec[0];
+                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                Split(line,line_vec,'.');
+                if (line_vec.size()>1)
+                {
+                    line=line_vec[1];
+                    _struct_ref_seq[line]=j;
+                }
+            }
+            else
+            {
+                l=read_semi_colon(line_vec, 2, l, lines, line_append_vec, line);
+                if (line_vec[0]=="_struct_ref_seq.pdbx_PDB_id_code")
+                    dbref_vec[0]=line_vec[1];
+                else if (line_vec[0]=="_struct_ref_seq.pdbx_strand_id")
+                    dbref_vec[1]=line_vec[1];
+                else if (line_vec[0]=="_struct_ref_seq.seq_align_beg" && 
+                    dbref_vec[2].size()==0) dbref_vec[2]=line_vec[1];
+                else if (line_vec[0]=="_struct_ref_seq.pdbx_auth_seq_align_beg")
+                    dbref_vec[2]=line_vec[1];
+                else if (line_vec[0]=="_struct_ref_seq.pdbx_seq_align_beg_ins_code")
+                    dbref_vec[3]=line_vec[1];
+                else if (line_vec[0]=="_struct_ref_seq.seq_align_end" && 
+                    dbref_vec[4].size()==0) dbref_vec[4]=line_vec[1];
+                else if (line_vec[0]=="_struct_ref_seq.pdbx_auth_seq_align_end")
+                    dbref_vec[4]=line_vec[1];
+                else if (line_vec[0]=="_struct_ref_seq.pdbx_seq_align_end_ins_code")
+                    dbref_vec[5]=line_vec[1];
+                else if (line_vec[0]=="_struct_ref_seq.pdbx_db_accession")
+                    dbref_vec[7]=line_vec[1];
+                else if (line_vec[0]=="_struct_ref_seq.db_align_beg")
+                    dbref_vec[9]=line_vec[1];
+                else if (line_vec[0]=="_struct_ref_seq.pdbx_db_align_beg_ins_code"
+                    && line_vec[1]!="?" && line_vec[1]!=".")
+                    dbref_vec[10]=line_vec[1];
+                else if (line_vec[0]=="_struct_ref_seq.db_align_end")
+                    dbref_vec[11]=line_vec[1];
+                else if (line_vec[0]=="_struct_ref_seq.pdbx_db_align_end_ins_code"
+                    && line_vec[1]!="?" && line_vec[1]!=".")
+                    dbref_vec[12]=line_vec[1];
+            }
+        }
+        else if (read_dbref && _struct_ref_seq.count("pdbx_strand_id") &&
+            _struct_ref_seq.count("pdbx_db_accession"))
+        {
+            l=read_semi_colon(line_vec, _struct_ref_seq.size(),
+                l, lines, line_append_vec, line);
+            if (_struct_ref_seq.count("pdbx_PDB_id_code"))
+                dbref_vec[0]=line_vec[_struct_ref_seq["pdbx_PDB_id_code"]];
+            else dbref_vec[0]=Upper(pdbid);
+            dbref_vec[1]=line_vec[_struct_ref_seq["pdbx_strand_id"]];
+            if (_struct_ref_seq.count("pdbx_auth_seq_align_beg"))
+                dbref_vec[2]=line_vec[_struct_ref_seq["pdbx_auth_seq_align_beg"]];
+            else if (_struct_ref_seq.count("seq_align_beg"))
+                dbref_vec[2]=line_vec[_struct_ref_seq["seq_align_beg"]];
+            if (_struct_ref_seq.count("pdbx_seq_align_beg_ins_code"))
+                dbref_vec[3]=line_vec[_struct_ref_seq["pdbx_seq_align_beg_ins_code"]];
+            if (_struct_ref_seq.count("pdbx_auth_seq_align_end"))
+                dbref_vec[4]=line_vec[_struct_ref_seq["pdbx_auth_seq_align_end"]];
+            else if (_struct_ref_seq.count("seq_align_end"))
+                dbref_vec[4]=line_vec[_struct_ref_seq["seq_align_end"]];
+            if (_struct_ref_seq.count("pdbx_seq_align_end_ins_code"))
+                dbref_vec[5]=line_vec[_struct_ref_seq["pdbx_seq_align_end_ins_code"]];
+            dbref_vec[7]=line_vec[_struct_ref_seq["pdbx_db_accession"]];
+            if (_struct_ref_seq.count("db_align_beg"))
+                dbref_vec[9]=line_vec[_struct_ref_seq["db_align_beg"]];
+            if (_struct_ref_seq.count("pdbx_db_align_beg_ins_code"))
+                dbref_vec[10]=line_vec[_struct_ref_seq["pdbx_db_align_beg_ins_code"]];
+            if (_struct_ref_seq.count("db_align_end"))
+                dbref_vec[11]=line_vec[_struct_ref_seq["db_align_end"]];
+            if (_struct_ref_seq.count("pdbx_db_align_end_ins_code"))
+                dbref_vec[12]=line_vec[_struct_ref_seq["pdbx_db_align_end_ins_code"]];
+            
+            for (i=0;i<dbref_vec.size();i++)
+                if (dbref_vec[i]=="?" || dbref_vec[i]==".") dbref_vec[i]=" ";
+            dbref_mat.push_back(dbref_vec);
+            for (i=0;i<dbref_vec.size();i++) dbref_vec[i]="";
+            dbref_vec[3]=dbref_vec[5]=dbref_vec[10]=dbref_vec[12]=" ";
+        }
         else if (read_seqres && StartsWith(line,"_entity_poly."))
         {
             if (loop_)
@@ -2827,8 +2993,8 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
                     pdbx_strand_id=line_vec[1];
             }
         }
-        else if (read_seqres && _entity_poly.size() && 
-            _entity_poly.count("entity_id") && _entity_poly.count("pdbx_strand_id"))
+        else if (read_seqres && _entity_poly.count("entity_id") && 
+            _entity_poly.count("pdbx_strand_id"))
         {
             l=read_semi_colon(line_vec, _entity_poly.size(),
                 l, lines, line_append_vec, line);
@@ -4000,7 +4166,59 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         cout<<filename<<endl;
         fout.open(filename.c_str());
         fout<<header1;
-        if (seqres_mat.size() && entity2strand.size())
+        if (read_dbref && dbref_mat.size())
+        {
+            for (l=0;l<dbref_mat.size();l++)
+            {
+                asym_id=dbref_mat[l][1];
+                if (bundleID_map[asym_id]!=i+1) continue;
+                for (j=0;j<dbref_vec.size();j++)
+                    dbref_vec[j]=dbref_mat[l][j];
+                if (accession2db_name.count(dbref_vec[7]))
+                    dbref_vec[6]=accession2db_name[dbref_vec[7]];
+                if (accession2db_code.count(dbref_vec[7]))
+                    dbref_vec[8]=accession2db_code[dbref_vec[7]];
+                    /*
+COLUMNS       DATA TYPE     FIELD              DEFINITION
+-----------------------------------------------------------------------------------
+ 1 -  6       Record name   "DBREF "
+ 8 - 11       IDcode        idCode             ID code of this entry.
+13            Character     chainID            Chain  identifier.
+15 - 18       Integer       seqBegin           Initial sequence number of the
+                                               PDB sequence segment.
+19            AChar         insertBegin        Initial  insertion code of the
+                                               PDB  sequence segment.
+21 - 24       Integer       seqEnd             Ending sequence number of the
+                                               PDB  sequence segment.
+25            AChar         insertEnd          Ending insertion code of the
+                                               PDB  sequence segment.
+27 - 32       LString       database           Sequence database name.
+34 - 41       LString       dbAccession        Sequence database accession code.
+43 - 54       LString       dbIdCode           Sequence  database identification code.
+56 - 60       Integer       dbseqBegin         Initial sequence number of the
+                                               database seqment.
+61            AChar         idbnsBeg           Insertion code of initial residue of the
+                                               segment, if PDB is the reference.
+63 - 67       Integer       dbseqEnd           Ending sequence number of the
+                                               database segment.
+68            AChar         dbinsEnd           Insertion code of the ending residue of
+                                               the segment, if PDB is the reference.
+                     */
+                buf<<"DBREF  "<<right<<setw(4)<<dbref_vec[0]<<' '
+                   <<chainID_map[asym_id]<<' '
+                   <<setw(4)<<dbref_vec[2]<<dbref_vec[3]<<' '
+                   <<setw(4)<<dbref_vec[4]<<dbref_vec[5]<<' '
+                   <<setw(6)<<left<<dbref_vec[6]<<' '
+                   <<setw(8)<<left<<dbref_vec[7]<<' '
+                   <<setw(12)<<left<<dbref_vec[8]<<' '
+                   <<setw(5)<<right<<dbref_vec[9]<<dbref_vec[10]<<' '
+                   <<setw(5)<<dbref_vec[11]<<dbref_vec[12]<<flush;
+                fout<<left<<setw(80)<<buf.str()<<endl;
+                buf.str(string());
+                
+            }
+        }
+        if (read_seqres && seqres_mat.size() && entity2strand.size())
         {
             for (j=0;j<chainID_vec.size();j++)
             {
@@ -4184,6 +4402,8 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     map<string,int> ().swap(_struct_keywords);
     map<string,int> ().swap(_entity_poly_seq);
     map<string,int> ().swap(_entity_poly);
+    map<string,int> ().swap(_struct_ref);
+    map<string,int> ().swap(_struct_ref_seq);
     
     map<string,char>().swap(chainID_map);
     map<string,int> ().swap(bundleID_map);
@@ -4254,6 +4474,11 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
     map<string,int>().swap(SplitChainNum_map);
     res.clear();
     
+    map<string,string>().swap(accession2db_name);
+    map<string,string>().swap(accession2db_code);
+    vector<vector<string> >().swap(dbref_mat);
+    vector<string>().swap(dbref_vec);
+    
     /* compression */
     if (do_gzip)
     {
@@ -4301,7 +4526,7 @@ int main(int argc,char **argv)
         else if (StartsWith(argv[a],"-seqres="))
             read_seqres=atoi((((string)(argv[a])).substr(8)).c_str());
         else if (StartsWith(argv[a],"-dbref="))
-            read_dbref=atoi((((string)(argv[a])).substr(8)).c_str());
+            read_dbref=atoi((((string)(argv[a])).substr(7)).c_str());
         else if (StartsWith(argv[a],"-gzip="))
             do_gzip=atoi((((string)(argv[a])).substr(6)).c_str());
         else if (StartsWith(argv[a],"-upper="))
