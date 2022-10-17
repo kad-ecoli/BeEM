@@ -110,6 +110,13 @@ void Split(const string &line, vector<string> &line_vec,
     }
 }
 
+void clear_line_vec(vector<string> &line_vec)
+{
+    int i;
+    for (i=0;i<line_vec.size();i++) line_vec[i].clear();
+    line_vec.clear();
+}
+
 string Basename(const string &inputString)
 {
     string result="";
@@ -119,12 +126,10 @@ string Basename(const string &inputString)
     if (line_vec.size())
     {
         result=line_vec.back();
-        for (i=0;i<line_vec.size();i++) line_vec[i].clear();
-        line_vec.clear();
+        clear_line_vec(line_vec);
         Split(result,line_vec,'\\');
         result=line_vec.back();
-        for (i=0;i<line_vec.size();i++) line_vec[i].clear();
-        line_vec.clear();
+        clear_line_vec(line_vec);
     }
     return result;
 }
@@ -2473,8 +2478,7 @@ int read_semi_colon(vector<string> &line_vec, const int fields, int l,
     if (line_vec.size() && StartsWith(line_vec[0],";"))
     {
         l--;
-        for (i=0;i<line_vec.size();i++) line_vec[i].clear();
-        line_vec.clear();
+        clear_line_vec(line_vec);
     }
     while (line_vec.size()<fields)
     {
@@ -2499,11 +2503,8 @@ int read_semi_colon(vector<string> &line_vec, const int fields, int l,
         {
             Split(lines[l],line_append_vec,' ',ignore_quotation);
             for (i=0;i<line_append_vec.size();i++)
-            {
                 line_vec.push_back(line_append_vec[i]);
-                line_append_vec[i].clear();
-            }
-            line_append_vec.clear();
+            clear_line_vec(line_append_vec);
         }
     }
     return l;
@@ -2743,7 +2744,7 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
             {
                 j=_pdbx_database_status.size();
                 line=line_vec[0];
-                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                clear_line_vec(line_vec);
                 Split(line,line_vec,'.');
                 if (line_vec.size()>1)
                 {
@@ -2770,7 +2771,7 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
             {
                 j=_struct_ref.size();
                 line=line_vec[0];
-                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                clear_line_vec(line_vec);
                 Split(line,line_vec,'.');
                 if (line_vec.size()>1)
                 {
@@ -2805,7 +2806,7 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
             {
                 j=_struct_ref_seq.size();
                 line=line_vec[0];
-                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                clear_line_vec(line_vec);
                 Split(line,line_vec,'.');
                 if (line_vec.size()>1)
                 {
@@ -2889,7 +2890,7 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
             {
                 j=_entity_poly.size();
                 line=line_vec[0];
-                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                clear_line_vec(line_vec);
                 Split(line,line_vec,'.');
                 if (line_vec.size()>1)
                 {
@@ -2920,7 +2921,7 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
         {
             j=_entity_poly_seq.size();
             line=line_vec[0];
-            for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+            clear_line_vec(line_vec);
             Split(line,line_vec,'.');
             if (line_vec.size()>1)
             {
@@ -2953,7 +2954,7 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
             {
                 j=_pdbx_audit_revision_history.size();
                 line=line_vec[0];
-                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                clear_line_vec(line_vec);
                 Split(line,line_vec,'.');
                 if (line_vec.size()>1)
                 {
@@ -2979,7 +2980,7 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
             if (loop_)
             {
                 line=line_vec[0];
-                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                clear_line_vec(line_vec);
                 Split(line,line_vec,'.');
                 if (line_vec.size()>1)
                 {
@@ -3111,7 +3112,7 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
             if (loop_)
             {
                 line=line_vec[0];
-                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                clear_line_vec(line_vec);
                 Split(line,line_vec,'.');
                 if (line_vec.size()>1)
                 {
@@ -3201,7 +3202,7 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
                     l, lines, line_append_vec, line);
                 line=line_vec[1];
                 line=Trim(line,"'\"");
-                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                clear_line_vec(line_vec);
                 Split(line,line_vec,',',true);
                 if (line_vec.size()>=2) line=lstrip(line_vec[1])+line_vec[0];
                 author_vec.push_back(Upper(line));
@@ -3214,7 +3215,7 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
                 l, lines, line_append_vec, line);
             line=line_vec[_audit_author["_audit_author.name"]];
             line=Trim(line,"'\"");
-            for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+            clear_line_vec(line_vec);
             Split(line,line_vec,',',true);
             if (line_vec.size()>=2) line=lstrip(line_vec[1])+line_vec[0];
             author_vec.push_back(Upper(line));
@@ -3224,7 +3225,7 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
             if (loop_)
             {
                 line=line_vec[0];
-                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                clear_line_vec(line_vec);
                 Split(line,line_vec,'.');
                 line=line_vec[1];
                 j=_citation_author.size();
@@ -3234,7 +3235,7 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
             {
                 line=line_vec[1];
                 line=Trim(line,"'\"");
-                for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+                clear_line_vec(line_vec);
                 Split(line,line_vec,',',true);
                 if (line_vec.size()>=2)
                     line=lstrip(line_vec[1])+line_vec[0];
@@ -3249,7 +3250,7 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
                 l, lines, line_append_vec, line);
             line=line_vec[_citation_author["name"]];
             line=Trim(line,"'\"");
-            for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+            clear_line_vec(line_vec);
             Split(line,line_vec,',',true);
             if (line_vec.size()>=2)
                 line=lstrip(line_vec[1])+line_vec[0];
@@ -3259,7 +3260,7 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
                  StartsWith(line,"_atom_site_anisotrop."))
         {
             line=line_vec[0];
-            for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+            clear_line_vec(line_vec);
             Split(line,line_vec,'.');
             if (line_vec.size()>1)
             {
@@ -3351,8 +3352,7 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
             if (outputChain_vec.size() && find(outputChain_vec.begin(),
                 outputChain_vec.end(), asym_id)==outputChain_vec.end())
             {
-                for (i=0;i<line_vec.size();i++) line_vec[i].clear();
-                line_vec.clear();
+                clear_line_vec(line_vec);
                 continue;
             }
             if (asym_id=="_") asym_id=" ";
@@ -3517,7 +3517,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
         }
 
         /* clean up */
-        for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+        clear_line_vec(line_vec);
         lines[l].clear();
     }
     lines.clear();
@@ -3618,8 +3618,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                     header1+=buf.str();
                     buf.str(string());
                     citation_author_vec[i]=Join(" ",line_vec,j);
-                    for (j=0;j<line_vec.size();j++) line_vec[j].clear();
-                    line_vec.clear();
+                    clear_line_vec(line_vec);
                     line="";
                     i--;
                 }
@@ -3705,7 +3704,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             header1+=buf.str();
             buf.str(string());
         }
-        for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+        clear_line_vec(line_vec);
     }
     if (_citation_title=="?")                   _citation_title="";
     if (_citation_pdbx_database_id_PubMed=="?") _citation_pdbx_database_id_PubMed="";
@@ -3761,7 +3760,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             }
             else line+=" "+line_vec[i];
         }
-        for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+        clear_line_vec(line_vec);
     //}
     //if (_citation_journal_id_ASTM.size() || _citation_country.size() ||
         //_citation_journal_id_ISSN.size())
@@ -4109,11 +4108,8 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
             line=entity2strand[j];
             Split(entity2strand[j],line_vec,',');
             for (i=0;i<line_vec.size();i++)
-            {
                 chain2entity_map[line_vec[i]]=j;
-                line_vec[i].clear();
-            }
-            line_vec.clear();
+            clear_line_vec(line_vec);
         }
     }
     
@@ -4640,7 +4636,7 @@ int cif2fasta(const string &infile, string &pdbid, const int do_upper,
         else if (StartsWith(line,"_atom_site."))
         {
             line=line_vec[0];
-            for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+            clear_line_vec(line_vec);
             Split(line,line_vec,'.');
             if (line_vec.size()>1)
             {
@@ -4657,16 +4653,14 @@ int cif2fasta(const string &infile, string &pdbid, const int do_upper,
                 if (pdbx_PDB_model_num!="." &&
                     pdbx_PDB_model_num=="?" && pdbx_PDB_model_num!="1")
                 {
-                    for (i=0;i<line_vec.size();i++) line_vec[i].clear();
-                    line_vec.clear();
+                    clear_line_vec(line_vec);
                     continue;
                 }
             }
             if (_atom_site.count("label_seq_id") && 
                 line_vec[_atom_site["label_seq_id"]]==".")
             {                
-                for (i=0;i<line_vec.size();i++) line_vec[i].clear();
-                line_vec.clear();
+                clear_line_vec(line_vec);
                 continue;
             }
             
@@ -4682,8 +4676,7 @@ int cif2fasta(const string &infile, string &pdbid, const int do_upper,
             if (outputChain_vec.size() && find(outputChain_vec.begin(),
                 outputChain_vec.end(), asym_id)==outputChain_vec.end())
             {
-                for (i=0;i<line_vec.size();i++) line_vec[i].clear();
-                line_vec.clear();
+                clear_line_vec(line_vec);
                 continue;
             }
 
@@ -4705,8 +4698,7 @@ int cif2fasta(const string &infile, string &pdbid, const int do_upper,
 
             if (asym_prev==asym_id && seq_prev==seq_id)
             {
-                for (i=0;i<line_vec.size();i++) line_vec[i].clear();
-                line_vec.clear();
+                clear_line_vec(line_vec);
                 continue;
             }
             
@@ -4752,7 +4744,7 @@ int cif2fasta(const string &infile, string &pdbid, const int do_upper,
         }
 
         /* clean up */
-        for (i=0;i<line_vec.size();i++) line_vec[i].clear(); line_vec.clear();
+        clear_line_vec(line_vec);
         lines[l].clear();
     }
     lines.clear();
