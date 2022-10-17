@@ -34,6 +34,8 @@ const char* docstring=""
 "                     2 - output one chain per PDB file\n"
 "                     3 - always output a single PDB file\n"
 "                     4 - output FASTA sequence converted from coordinate\n"
+"    -chain=A,B       comma seperated list of chains to output\n"
+"                     default is to output all chains\n"
 ;
 
 #include <vector>
@@ -2509,7 +2511,8 @@ int read_semi_colon(vector<string> &line_vec, const int fields, int l,
 
 int BeEM(const string &infile, string &pdbid, const int read_seqres,
     const int read_dbref, const int do_gzip, const int do_upper,
-    const long int maxatom, const int outfmt)
+    const long int maxatom, const int outfmt, 
+    const vector<string>&outputChain_vec)
 {
 
     stringstream buf;
@@ -3344,6 +3347,15 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
                 asym_id=line_vec[_atom_site["pdbx_auth_asym_id"]];
             else if (_atom_site.count("pdbx_label_asym_id"))
                 asym_id=line_vec[_atom_site["pdbx_label_asym_id"]];
+            if (asym_id=="." || asym_id=="?") asym_id="_";
+            if (outputChain_vec.size() && find(outputChain_vec.begin(),
+                outputChain_vec.end(), asym_id)==outputChain_vec.end())
+            {
+                for (i=0;i<line_vec.size();i++) line_vec[i].clear();
+                line_vec.clear();
+                continue;
+            }
+            if (asym_id=="_") asym_id=" ";
 
             if (_atom_site.count("auth_seq_id"))
                 seq_id=line_vec[_atom_site["auth_seq_id"]];
@@ -4563,7 +4575,7 @@ inline char aa3to1(const string resn)
 }
 
 int cif2fasta(const string &infile, string &pdbid, const int do_upper,
-    const int do_gzip)
+    const int do_gzip, const vector<string> &outputChain_vec)
 {
 
     stringstream buf;
@@ -4667,6 +4679,13 @@ int cif2fasta(const string &infile, string &pdbid, const int do_upper,
             else if (_atom_site.count("pdbx_label_asym_id"))
                 asym_id=line_vec[_atom_site["pdbx_label_asym_id"]];
             if (asym_id=="." || asym_id=="?") asym_id="_";
+            if (outputChain_vec.size() && find(outputChain_vec.begin(),
+                outputChain_vec.end(), asym_id)==outputChain_vec.end())
+            {
+                for (i=0;i<line_vec.size();i++) line_vec[i].clear();
+                line_vec.clear();
+                continue;
+            }
 
             if (_atom_site.count("auth_seq_id"))
                 seq_id=line_vec[_atom_site["auth_seq_id"]];
@@ -4827,6 +4846,7 @@ int main(int argc,char **argv)
     int do_upper   =1;
     long int maxatom=99999;
     int outfmt     =0;
+    vector<string> outputChain_vec;
 
     for (int a=1;a<argc;a++)
     {
@@ -4844,6 +4864,8 @@ int main(int argc,char **argv)
             maxatom=atol((((string)(argv[a])).substr(9)).c_str());
         else if (StartsWith(argv[a],"-outfmt="))
             outfmt=atol((((string)(argv[a])).substr(8)).c_str());
+        else if (StartsWith(argv[a],"-chain="))
+            Split(((string)(argv[a])).substr(7),outputChain_vec,',');
         else if ((string)(argv[a])=="-seqres")
             read_seqres=1;
         else if ((string)(argv[a])=="-dbref")
@@ -4872,13 +4894,14 @@ int main(int argc,char **argv)
     }
 
     if (outfmt==4)
-        cif2fasta(infile,pdbid,do_upper,do_gzip);
+        cif2fasta(infile,pdbid,do_upper,do_gzip,outputChain_vec);
     else BeEM(infile,pdbid,read_seqres,read_dbref,do_gzip,do_upper,maxatom,
-        outfmt);
+        outfmt,outputChain_vec);
 
     /* clean up */
     string ().swap(infile);
     string ().swap(pdbid);
+    vector<string> ().swap(outputChain_vec);
     return 0;
 }
 
