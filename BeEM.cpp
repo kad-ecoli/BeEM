@@ -695,16 +695,6 @@ namespace redi
         return *this;
       }
 
-      /**
-       * @brief Set streambuf to read from process' @c stderr.
-       * @return  @c *this
-       */
-      basic_ipstream&
-      err()
-      {
-        this->buf_.read_err(true);
-        return *this;
-      }
     };
 
 
@@ -992,17 +982,6 @@ namespace redi
         this->buf_.read_err(false);
         return *this;
       }
-
-      /**
-       * @brief Set streambuf to read from process' @c stderr.
-       * @return  @c *this
-       */
-      basic_pstream&
-      err()
-      {
-        this->buf_.read_err(true);
-        return *this;
-      }
     };
 
 
@@ -1160,18 +1139,6 @@ namespace redi
       out()
       {
         this->buf_.read_err(false);
-        return *this;
-      }
-
-      /**
-       * @brief  Obtain a reference to the istream that reads
-       *         the process' @c stderr.
-       * @return @c *this
-       */
-      istream_type&
-      err()
-      {
-        this->buf_.read_err(true);
         return *this;
       }
     };
@@ -1887,19 +1854,6 @@ namespace redi
       return ppid_ == 0 || wait(true)==1;
     }
 
-
-  /**
-   *  @return  The exit status of the child process, or -1 if wait()
-   *           has not yet been called to wait for the child to exit.
-   *  @see     basic_pstreambuf<C,T>::wait()
-   */
-  template <typename C, typename T>
-    inline int
-    basic_pstreambuf<C,T>::status() const
-    {
-      return status_;
-    }
-
   /**
    *  @return  The error code of the most recently failed operation, or zero.
    */
@@ -2366,14 +2320,6 @@ namespace redi
       return buf_.is_open();
     }
 
-  /** @return a string containing the command used to initialise the stream. */
-  template <typename C, typename T>
-    inline const std::string&
-    pstream_common<C,T>::command() const
-    {
-      return command_;
-    }
-
   /** @return a pointer to the private stream buffer member. */
   // TODO  document behaviour if buffer replaced.
   template <typename C, typename T>
@@ -2514,52 +2460,6 @@ inline string formatANISOU(const string &inputString)
     if (result.size()>7) result=result.substr(0,7);
     pre_decimal.clear();
     post_decimal.clear();
-    return result;
-}
-
-inline string formatANISOU2(const string &inputString)
-{
-    string minus="";
-    string result=inputString;
-    if (StartsWith(inputString,"-"))
-    {
-        minus=inputString[0];
-        result=inputString.substr(1);
-    }
-    size_t found=result.find_first_of('.');
-    string pre_decimal="";
-    string post_decimal="0000";
-    if (found!=string::npos)
-    {
-        pre_decimal=result.substr(0,found);
-        post_decimal=result.substr(found+1);
-        if (post_decimal.size()>4)
-        {
-            int decimalInt=atoi(post_decimal.c_str());
-            int extra_prod=1;
-            int i;
-            for (i=0;i<post_decimal.size()-4;i++) extra_prod*=10;
-            stringstream buf;
-            buf<<((int)((decimalInt+.5)/extra_prod));
-            post_decimal=buf.str();
-            buf.str(string());
-            while (post_decimal.size()<4) post_decimal='0'+post_decimal;
-        }
-        else while (post_decimal.size()<4) post_decimal+='0';
-    }
-    else pre_decimal=result;
-    result=lstrip(pre_decimal+post_decimal,"0");
-    if (result.size()==0) result="      0";
-    else result=minus+result;
-    pre_decimal.clear();
-    post_decimal.clear();
-    if (result.size()>7) result=result.substr(0,7);
-    else if (result.size()==6) result=" "+result;
-    else if (result.size()==5) result="  "+result; 
-    else if (result.size()==4) result="   "+result; 
-    else if (result.size()==3) result="    "+result; 
-    else if (result.size()==2) result="     "+result; 
-    else if (result.size()==1) result="      "+result; 
     return result;
 }
 
@@ -3879,7 +3779,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     for (i=0;i<cryst1_vec.size();i++)
     {
         cryst1Count+=cryst1_vec[i].size()>0;
-        if (i>=6 && cryst1_vec[i]=="?" || cryst1_vec[i]==".") cryst1_vec[i]="";
+        if (i>=6 && (cryst1_vec[i]=="?" || cryst1_vec[i]==".")) cryst1_vec[i]="";
     }
     if (cryst1Count)
     {
