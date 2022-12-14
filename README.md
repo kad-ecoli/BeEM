@@ -32,5 +32,5 @@ For extended length CCD names (i.e., residue names with 5 characters), only the 
 
 ## Citation ##
 Chengxin Zhang (2022)
-[BeEM: fast and faithful conversion of mmCIF format structure files to PDB format](https://doi.org/10.1101/2022.11.11.516190)
+[BeEM: fast and faithful conversion of mmCIF format structure files to PDB format](https://doi.org/10.1101/2022.11.11.516190).
 bioRxiv 2022.11.11.516190
