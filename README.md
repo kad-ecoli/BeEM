@@ -28,7 +28,11 @@ The following PDB records are not included: OBSLTE, TITLE, CAVEAT, COMPND, SOURC
 
 BeEM may optionally include SEQRES and DBREF.
 
-For extended length CCD names (i.e., residue names with 5 characters), only the first three characters are kept. For residue sequence number with 5 or more characters, the first four characters occupies usual location for the residue sequence number, the fifth character will occupy the position of the insertion code, while the remaining charaters are discarded. A single [chain with >99999 atoms](https://www.rcsb.org/structure/4V5X) are splitted into multiple Best Effort/Minimal files.
+[Extended length CCD names (i.e., residue names with 5 characters)](https://www.rcsb.org/news/630fee4cebdf34532a949c34)
+will be mapped to a set of reserved CCD IDs: 01 - 99, DRG, INH, LIG that will never be used in the PDB.
+In this case, a tab-delimited mapping file ligand-id-mapping.tsv will be provided to map reserved CCD IDs to extended length CCD IDs.
+
+For residue sequence number with 5 or more characters, the first four characters occupies usual location for the residue sequence number, the fifth character will occupy the position of the insertion code, while the remaining charaters are discarded. A single [chain with >99999 atoms](https://www.rcsb.org/structure/4V5X) are splitted into multiple Best Effort/Minimal files.
 
 ## Citation ##
 Chengxin Zhang (2022)

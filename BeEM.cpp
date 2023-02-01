@@ -34,11 +34,16 @@ const char* docstring=""
 "                     2 - output one chain per PDB file\n"
 "                     3 - always output a single PDB file\n"
 "                     4 - output FASTA sequence converted from coordinate\n"
-"    -chain=A,B       comma seperated list of chains to output\n"
+"   -chain=A,B        comma seperated list of chains to output\n"
 "                     default is to output all chains\n"
-"    -idmap={txt,tsv} format of chain ID mapping file\n"
+"   -idmap={txt,tsv}  format of chain ID mapping file\n"
 "                     txt - (default) space-justified text\n"
 "                     tsv - tab-delimited tabular text\n"
+"   -ccd5={map,trim}  how to handle expanded chemical component ID >3 characters\n"
+"                     map  - (default) map the residue name to reserved set of \n"
+"                            chemical component IDs: 01 - 99, DRG, INH, LIG\n"
+"                     trim - trim the residue name to keep only the first three\n"
+"                            characters\n"
 ;
 
 #include <vector>
@@ -2516,7 +2521,7 @@ int read_semi_colon(vector<string> &line_vec, const int fields, int l,
 int BeEM(const string &infile, string &pdbid, const int read_seqres,
     const int read_dbref, const int do_gzip, const int do_upper,
     const long int maxatom, const int outfmt, const string &idmap,
-    const vector<string>&outputChain_vec)
+    const vector<string>&ccd3_vec, const vector<string>&outputChain_vec)
 {
 
     stringstream buf;
@@ -2549,6 +2554,8 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
 
     /* parse PDB ID
      * HEADER, AUTHOR, JRNL, CRYST1, SCALEn */
+    vector<string> ccd5_vec;
+    map<string,string> ccd5_map;
     string pdbx_keywords="";
     string recvd_initial_deposition_date="";
     string revision_date="";
@@ -3341,7 +3348,19 @@ int BeEM(const string &infile, string &pdbid, const int read_seqres,
                 comp_id=line_vec[_atom_site["pdbx_label_comp_id"]];
             if      (comp_id.size()==1) comp_id="  "+comp_id;
             else if (comp_id.size()==2) comp_id=" "+comp_id;
-            else if (comp_id.size()>3)  comp_id=comp_id.substr(0,3);
+            if (comp_id.size()>3)
+            {
+                if (ccd3_vec.size()==0) comp_id=comp_id.substr(0,3);
+                else
+                {
+                    if (ccd5_map.count(comp_id)==0)
+                    {
+                        ccd5_map[comp_id]=ccd3_vec[ccd5_vec.size() % ccd3_vec.size()];
+                        ccd5_vec.push_back(comp_id);
+                    }
+                    comp_id=ccd5_map[comp_id];
+                }
+            }
 
             if (_atom_site.count("auth_asym_id"))
                 asym_id=line_vec[_atom_site["auth_asym_id"]];
@@ -3955,7 +3974,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     if (writebundle && outfmt<=1)
     {
         fout.open(filename.c_str());
-        if (idmap=="tsv") fout<<"#pdb-bundle\tNew-chain-ID\tOriginal-chain-ID\n";
+        if (idmap=="tsv") fout<<"#pdb-bundle\tNew_chain_ID\tOriginal_chain_ID\n";
         else fout<<"    New chain ID            Original chain ID\n";
         for (i=0;i<chainID_vec.size();i++)
         {
@@ -4363,8 +4382,23 @@ COLUMNS         DATA TYPE     FIELD          DEFINITION
         fout.close();
     }
     if (writebundle && outfmt<=1) cout<<filename_vec.back()<<endl;
+    if (outfmt<=3 && ccd5_vec.size())
+    {
+        filename=pdbid+"-ligand-id-mapping.tsv";
+        fout.open(filename.c_str());
+        fout<<"#New_ligand_ID\tOriginal_ligand_ID\n";
+        for (l=0;l<ccd5_vec.size();l++)
+            fout<<ccd5_map[ccd5_vec[l]]<<'\t'<<ccd5_vec[l]<<'\n';
+        fout<<flush;
+        fout.close();
+        filename_vec.push_back(filename);
+        cout<<filename<<endl;
+    }
 
     /* clean up */
+    vector<string> ().swap(ccd5_vec);
+    map<string,string> ().swap(ccd5_map);
+
     string ().swap(pdbx_keywords);
     string ().swap(recvd_initial_deposition_date);
     string ().swap(revision_date);
@@ -4842,15 +4876,17 @@ int main(int argc,char **argv)
     string infile ="";
     string pdbid  ="";
     string idmap  ="txt";
+    string ccd5   ="map";
     int read_seqres=0;
     int read_dbref =0;
     int do_gzip    =0;
     int do_upper   =1;
     long int maxatom=99999;
     int outfmt     =0;
+    int a,b;
     vector<string> outputChain_vec;
 
-    for (int a=1;a<argc;a++)
+    for (a=1;a<argc;a++)
     {
         if (StartsWith(argv[a],"-p="))
             pdbid=((string)(argv[a])).substr(3);
@@ -4868,6 +4904,8 @@ int main(int argc,char **argv)
             outfmt=atol((((string)(argv[a])).substr(8)).c_str());
         else if (StartsWith(argv[a],"-idmap="))
             idmap=((string)(argv[a])).substr(7);
+        else if (StartsWith(argv[a],"-ccd5="))
+            ccd5=((string)(argv[a])).substr(6);
         else if (StartsWith(argv[a],"-chain="))
             Split(((string)(argv[a])).substr(7),outputChain_vec,',');
         else if ((string)(argv[a])=="-seqres")
@@ -4884,6 +4922,8 @@ int main(int argc,char **argv)
             outfmt=1;
         else if ((string)(argv[a])=="-idmap")
             idmap="tsv";
+        else if ((string)(argv[a])=="-ccd5")
+            ccd5="trim";
         else if (infile.size()==0)
             infile=argv[a];
         else
@@ -4899,15 +4939,38 @@ int main(int argc,char **argv)
         return 1;
     }
 
+    vector<string> ccd3_vec; // 01 - 99, DRG, INH, LIG 
+    if (ccd5=="map")
+    {
+        stringstream buf;
+        for (a=1;a<=9;a++)
+        {
+            buf<<" 0"<<a;
+            ccd3_vec.push_back(buf.str());
+            buf.str(string());
+        }
+        for (a=1;a<=9;a++) for (b=0;b<=9;b++)
+        {
+            buf<<" "<<a<<b;
+            ccd3_vec.push_back(buf.str());
+            buf.str(string());
+        }
+        ccd3_vec.push_back("DRG");
+        ccd3_vec.push_back("INH");
+        ccd3_vec.push_back("LIG");
+    }
+
     if (outfmt==4)
         cif2fasta(infile,pdbid,do_upper,do_gzip,outputChain_vec);
     else BeEM(infile,pdbid,read_seqres,read_dbref,do_gzip,do_upper,maxatom,
-        outfmt,idmap,outputChain_vec);
+        outfmt,idmap,ccd3_vec,outputChain_vec);
 
     /* clean up */
     string ().swap(infile);
     string ().swap(pdbid);
     string ().swap(idmap);
+    string ().swap(ccd5);
+    vector<string> ().swap(ccd3_vec);
     vector<string> ().swap(outputChain_vec);
     return 0;
 }
