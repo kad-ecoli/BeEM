@@ -36,6 +36,9 @@ const char* docstring=""
 "                     4 - output FASTA sequence converted from coordinate\n"
 "    -chain=A,B       comma seperated list of chains to output\n"
 "                     default is to output all chains\n"
+"    -idmap={txt,tsv} format of chain ID mapping file\n"
+"                     txt - (default) space-justified text\n"
+"                     tsv - tab-delimited tabular text\n"
 ;
 
 #include <vector>
@@ -2512,7 +2515,7 @@ int read_semi_colon(vector<string> &line_vec, const int fields, int l,
 
 int BeEM(const string &infile, string &pdbid, const int read_seqres,
     const int read_dbref, const int do_gzip, const int do_upper,
-    const long int maxatom, const int outfmt, 
+    const long int maxatom, const int outfmt, const string &idmap,
     const vector<string>&outputChain_vec)
 {
 
@@ -3946,12 +3949,14 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     bundleNum=0;
     ofstream fout;
     string filename=pdbid+"-chain-id-mapping.txt";
+    if (idmap=="tsv") filename=pdbid+"-chain-id-mapping.tsv";
     vector<string>filename_vec;
     map<string,int> filename_app_map;
     if (writebundle && outfmt<=1)
     {
         fout.open(filename.c_str());
-        fout<<"    New chain ID            Original chain ID\n";
+        if (idmap=="tsv") fout<<"#pdb-bundle\tNew-chain-ID\tOriginal-chain-ID\n";
+        else fout<<"    New chain ID            Original chain ID\n";
         for (i=0;i<chainID_vec.size();i++)
         {
             asym_id=chainID_vec[i];
@@ -3965,9 +3970,10 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                     filename=buf.str();
                     buf.str(string());
                     filename_vec.push_back(filename);
-                    fout<<'\n'<<Basename(filename)<<":\n";
-                    fout<<"           "<<chainID_map[asym_id]
-                        <<setw(26)<<right<<asym_id<<'\n';
+                    if (idmap=="tsv") fout<<Basename(filename)<<'\t'
+                        <<chainID_map[asym_id]<<'\t'<<asym_id<<'\n';
+                    else fout<<'\n'<<Basename(filename)<<":\n           "
+                        <<chainID_map[asym_id]<<setw(26)<<right<<asym_id<<'\n';
                 }
                 continue;
             }
@@ -3978,9 +3984,11 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
                 filename=buf.str();
                 buf.str(string());
                 filename_vec.push_back(filename);
-                fout<<'\n'<<Basename(filename)<<":\n";
+                if (idmap!="tsv") fout<<'\n'<<Basename(filename)<<":\n";
             }
-            fout<<"           "<<chainID_map[asym_id]
+            if (idmap=="tsv") fout<<Basename(filename)<<'\t'
+                <<chainID_map[asym_id]<<'\t'<<asym_id<<'\n';
+            else fout<<"           "<<chainID_map[asym_id]
                 <<setw(26)<<right<<asym_id<<'\n';
         }
         fout<<flush;
@@ -4009,6 +4017,7 @@ COLUMNS       DATA  TYPE    FIELD          DEFINITION
     }
     else filename_vec.push_back(pdbid+".pdb");
     filename=pdbid+"-chain-id-mapping.txt";
+    if (idmap=="tsv") filename=pdbid+"-chain-id-mapping.tsv";
     filename_vec.push_back(filename);
     filename_app_map[filename]=1;
     
@@ -4832,6 +4841,7 @@ int main(int argc,char **argv)
 {
     string infile ="";
     string pdbid  ="";
+    string idmap  ="txt";
     int read_seqres=0;
     int read_dbref =0;
     int do_gzip    =0;
@@ -4856,6 +4866,8 @@ int main(int argc,char **argv)
             maxatom=atol((((string)(argv[a])).substr(9)).c_str());
         else if (StartsWith(argv[a],"-outfmt="))
             outfmt=atol((((string)(argv[a])).substr(8)).c_str());
+        else if (StartsWith(argv[a],"-idmap="))
+            idmap=((string)(argv[a])).substr(7);
         else if (StartsWith(argv[a],"-chain="))
             Split(((string)(argv[a])).substr(7),outputChain_vec,',');
         else if ((string)(argv[a])=="-seqres")
@@ -4870,6 +4882,8 @@ int main(int argc,char **argv)
             maxatom=0;
         else if ((string)(argv[a])=="-outfmt")
             outfmt=1;
+        else if ((string)(argv[a])=="-idmap")
+            idmap="tsv";
         else if (infile.size()==0)
             infile=argv[a];
         else
@@ -4888,11 +4902,12 @@ int main(int argc,char **argv)
     if (outfmt==4)
         cif2fasta(infile,pdbid,do_upper,do_gzip,outputChain_vec);
     else BeEM(infile,pdbid,read_seqres,read_dbref,do_gzip,do_upper,maxatom,
-        outfmt,outputChain_vec);
+        outfmt,idmap,outputChain_vec);
 
     /* clean up */
     string ().swap(infile);
     string ().swap(pdbid);
+    string ().swap(idmap);
     vector<string> ().swap(outputChain_vec);
     return 0;
 }
