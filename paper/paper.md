@@ -9,7 +9,6 @@ authors:
   - name: Chengxin Zhang
     orcid: 0000-0001-7290-1324
     affiliation: 1
-    corresponding: true # (This is how to denote the corresponding author)
 affiliations:
  - name: Department of Computational Medicine and Bioinformatics, University of Michigan, Ann Arbor, MI 48109, USA
 date: 03 March 2023
@@ -42,6 +41,6 @@ BeEM, together with MAXIT, GEMMI, and Phenix, are benchmarked on a large dataset
 
 # Acknowledgements
 
-The author thanks Dr Anna Pyle for insightful discussions.
+The author thanks Dr Anna Pyle for insightful discussions. This work used the Advanced Cyberinfrastructure Coordination Ecosystem: Services & Support (ACCESS) program, which is supported by National Science Foundation grants 2138259, 2138286, 2138307, 2137603, and 2138296.
 
 # References
