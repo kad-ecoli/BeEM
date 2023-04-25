@@ -10,7 +10,11 @@ The current official format for the Protein Data Bank is [PDBx/mmCIF](https://mm
 For these structures, the [Best Effort/Minimal](https://www.rcsb.org/docs/general-help/structures-without-legacy-pdb-format-files) PDB files are provided by the PDB database instead. Unfortunately, [not](https://www.rcsb.org/structure/7NWG) [all](https://www.rcsb.org/structure/7NWH) [best](https://www.rcsb.org/structure/7NWI) effort/minimal files are generated correctly in the PDB database. Moreover, there is no publicly available tool for the generation of Best Effort/Minimal files. To address this issue, we develop BEst Effort/Minimal (BeEM), the first open source implementation for the generation of Best Effort/Minimal file.
 
 ## Usage ##
-Compile the C++ program:
+Although binary executables are available for 
+[Linux](https://github.com/kad-ecoli/BeEM/releases/download/v1.0.1/BeEM.linux), 
+[Windows](https://github.com/kad-ecoli/BeEM/releases/download/v1.0.1/BeEM.windows.exe) and
+[Mac](https://github.com/kad-ecoli/BeEM/releases/download/v1.0.1/BeEM.macosx), 
+it is recommended to compile the C++ program on your own operating system:
 ```bash
 g++ -O3 BeEM.cpp -o BeEM
 ```
