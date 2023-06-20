@@ -39,6 +39,6 @@ In this case, a tab-delimited mapping file ligand-id-mapping.tsv will be provide
 For residue sequence number with 5 or more characters, the first four characters occupies usual location for the residue sequence number, the fifth character will occupy the position of the insertion code, while the remaining charaters are discarded. A single [chain with >99999 atoms](https://www.rcsb.org/structure/4V5X) are splitted into multiple Best Effort/Minimal files.
 
 ## Citation ##
-Chengxin Zhang (2022)
+Chengxin Zhang (2023)
 [BeEM: fast and faithful conversion of mmCIF format structure files to PDB format](https://doi.org/10.1101/2022.11.11.516190).
-bioRxiv 2022.11.11.516190
+BMC Bionformatics, in press.
