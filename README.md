@@ -40,5 +40,5 @@ For residue sequence number with 5 or more characters, the first four characters
 
 ## Citation ##
 Chengxin Zhang (2023)
-[BeEM: fast and faithful conversion of mmCIF format structure files to PDB format](https://doi.org/10.1101/2022.11.11.516190).
-BMC Bionformatics, in press.
+[BeEM: fast and faithful conversion of mmCIF format structure files to PDB format](https://doi.org/10.1186/s12859-023-05388-9).
+BMC Bionformatics, 24, 260.
