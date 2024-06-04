@@ -38,6 +38,13 @@ In this case, a tab-delimited mapping file ligand-id-mapping.tsv will be provide
 
 For residue sequence number with 5 or more characters, the first four characters occupies usual location for the residue sequence number, the fifth character will occupy the position of the insertion code, while the remaining charaters are discarded. A single [chain with >99999 atoms](https://www.rcsb.org/structure/4V5X) are splitted into multiple Best Effort/Minimal files.
 
+## CIFTE ##
+Another program, ``cifte`` is available to perform the reverse operation of converting PDB format files to mmCIF/PDBx format.
+``bash
+g++ -O3 cifte.cpp -o cifte
+cifte input.pdb output.cif
+```
+
 ## Citation ##
 Chengxin Zhang (2023)
 [BeEM: fast and faithful conversion of mmCIF format structure files to PDB format](https://doi.org/10.1186/s12859-023-05388-9).
