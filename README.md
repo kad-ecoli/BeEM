@@ -40,7 +40,7 @@ For residue sequence number with 5 or more characters, the first four characters
 
 ## CIFTE ##
 Another program, ``cifte`` is available to perform the reverse operation of converting PDB format files to mmCIF/PDBx format.
-``bash
+```bash
 g++ -O3 cifte.cpp -o cifte
 cifte input.pdb output.cif
 ```
